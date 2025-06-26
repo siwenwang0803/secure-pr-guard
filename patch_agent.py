@@ -1,8 +1,9 @@
 # patch_agent.py
-import difflib, json, openai, os
+import difflib, json, os
 from typing import List, Dict
+from openai import OpenAI
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 LOW_RISK_TYPES = {"indentation", "length", "style"}
 
@@ -24,8 +25,22 @@ Return **full unified diff** starting with --- / +++.
 ### LINT ISSUES
 {json.dumps(lines_to_fix, indent=2)}
 """
-    rsp = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return rsp.choices[0].message.content.strip()
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=2000
+        )
+        
+        # 记录token使用情况
+        usage = response.usage
+        total_tokens = usage.total_tokens
+        cost_estimate = total_tokens * 0.00015 / 1000  # gpt-4o-mini pricing
+        print(f"💰 Token usage: {total_tokens} tokens (~${cost_estimate:.4f})")
+        
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ OpenAI API error: {str(e)}")
+        return ""
