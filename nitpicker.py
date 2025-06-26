@@ -1,18 +1,30 @@
 import os
 import json
+import time
 from openai import OpenAI
+from typing import Dict, Tuple  # 确保Tuple在这里！
 from dotenv import load_dotenv
 from security_checks import run_llm_security_rules
-
+from cost_logger import log_cost
 # Load environment variables
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def nitpick(diff: str) -> dict:
+def nitpick(diff: str, pr_url: str = "") -> Tuple[Dict, Dict]:
     """
-    Analyze code diff and return structured issues
+    Analyze code diff and return structured issues with cost tracking
+    
+    Args:
+        diff: Git diff content to analyze
+        pr_url: GitHub PR URL for cost tracking
+        
+    Returns:
+        Tuple[Dict, Dict]: (analysis_result, cost_info)
     """
+    # Start timing
+    start_time = time.time()
+    
     system_prompt = """You are a senior code reviewer specializing in security and code quality.
     
     Analyze the provided git diff and identify issues in these categories:
@@ -73,6 +85,21 @@ Please analyze only the added lines (+ prefix) and provide specific feedback."""
             function_call={"name": "code_review"}
         )
         
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Log cost information
+        usage = response.usage
+        cost = log_cost(
+            pr_url=pr_url,
+            operation="nitpicker_analysis",
+            model="gpt-4o-mini",
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+            latency_ms=latency_ms
+        )
+        
         # Parse the function call result
         function_call = response.choices[0].message.function_call
         ai_result = json.loads(function_call.arguments)
@@ -102,7 +129,7 @@ Please analyze only the added lines (+ prefix) and provide specific feedback."""
                 unique_issues.append(issue)
                 seen_lines.add(line_key)
         
-        return {
+        analysis_result = {
             "issues": unique_issues,
             "analysis_summary": {
                 "ai_detected": len(ai_result.get("issues", [])),
@@ -111,19 +138,59 @@ Please analyze only the added lines (+ prefix) and provide specific feedback."""
             }
         }
         
+        cost_info = {
+            "model": "gpt-4o-mini",
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "cost_usd": cost,
+            "latency_ms": latency_ms
+        }
+        
+        return analysis_result, cost_info
+        
     except Exception as e:
-        return {"issues": [], "error": str(e)}
+        # Log error but still track partial cost
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        error_result = {"issues": [], "error": str(e)}
+        cost_info = {
+            "model": "gpt-4o-mini",
+            "total_tokens": 0,
+            "cost_usd": 0,
+            "latency_ms": latency_ms,
+            "error": str(e)
+        }
+        
+        return error_result, cost_info
 
-def nitpick_from_file(file_path: str) -> dict:
+def nitpick_from_file(file_path: str, pr_url: str = "") -> Tuple[Dict, Dict]:
     """
-    Read diff from file and analyze
+    Read diff from file and analyze with cost tracking
+    
+    Args:
+        file_path: Path to diff file
+        pr_url: GitHub PR URL for cost tracking
+        
+    Returns:
+        Tuple[Dict, Dict]: (analysis_result, cost_info)
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             diff_content = f.read()
-        return nitpick(diff_content)
+        return nitpick(diff_content, pr_url)
     except Exception as e:
-        return {"issues": [], "error": f"File error: {str(e)}"}
+        error_result = {"issues": [], "error": f"File error: {str(e)}"}
+        cost_info = {"total_tokens": 0, "cost_usd": 0, "latency_ms": 0, "error": str(e)}
+        return error_result, cost_info
+
+# Backward compatibility wrapper
+def nitpick_legacy(diff: str) -> Dict:
+    """
+    Legacy function signature for backward compatibility
+    """
+    result, _ = nitpick(diff, "")
+    return result
 
 if __name__ == "__main__":
     import sys

@@ -1,0 +1,25 @@
+graph TD
+    START([🚀 Start]) --> fetch_diff[🔍 Fetch Diff<br/>GitHub API Integration<br/>Extract PR Changes]
+    
+    fetch_diff --> nitpicker[🤖 Nitpicker<br/>AI Analysis + OWASP Rules<br/>GPT-4o + Security Patterns]
+    
+    nitpicker --> architect[🏗️ Architect<br/>Security Risk Assessment<br/>Priority Classification]
+    
+    architect --> patch[🛠️ Patch Agent<br/>Auto-Fix Generation<br/>Safe Code Formatting]
+    
+    patch --> comment[💬 Comment<br/>GitHub Integration<br/>Professional Reporting]
+    
+    comment --> END([✅ Complete])
+    
+    %% Styling
+    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000
+    classDef fetch fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000
+    classDef ai fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef security fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    
+    class START,END startEnd
+    class fetch_diff fetch
+    class nitpicker,patch ai
+    class architect security
+    class comment output
