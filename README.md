@@ -73,7 +73,7 @@ Real-time observability powered by **Grafana Cloud + OpenTelemetry**:
 - **⚡ Latency Monitoring**: End-to-end performance tracking (6-8s avg per operation)  
 - **🔤 Token Analytics**: Usage patterns and efficiency metrics (70% prompt, 30% completion)
 
-![Dashboard](docs/dashboard-example.md)
+📊 **[Live Dashboard Documentation](docs/dashboard-screenshot.md)** | 📋 **[Dashboard JSON](docs/dashboard.json)**
 
 ### Enterprise Observability
 ```bash
