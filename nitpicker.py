@@ -2,6 +2,7 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
+from security_checks import run_llm_security_rules
 
 # Load environment variables
 load_dotenv()
@@ -74,7 +75,41 @@ Please analyze only the added lines (+ prefix) and provide specific feedback."""
         
         # Parse the function call result
         function_call = response.choices[0].message.function_call
-        return json.loads(function_call.arguments)
+        ai_result = json.loads(function_call.arguments)
+        
+        # Add OWASP LLM security rule checks
+        print("🔒 Running OWASP LLM security checks...")
+        security_issues = run_llm_security_rules(diff)
+        
+        # Combine AI analysis with rule-based security checks
+        all_issues = ai_result.get("issues", []) + security_issues
+        
+        # Remove duplicates (keep the more detailed one)
+        unique_issues = []
+        seen_lines = set()
+        
+        # Prioritize security issues from rules (more specific)
+        for issue in security_issues:
+            line_key = f"{issue['line']}_{issue['type']}"
+            if line_key not in seen_lines:
+                unique_issues.append(issue)
+                seen_lines.add(line_key)
+        
+        # Add AI issues that don't duplicate rule findings
+        for issue in ai_result.get("issues", []):
+            line_key = f"{issue['line']}_{issue['type']}"
+            if line_key not in seen_lines:
+                unique_issues.append(issue)
+                seen_lines.add(line_key)
+        
+        return {
+            "issues": unique_issues,
+            "analysis_summary": {
+                "ai_detected": len(ai_result.get("issues", [])),
+                "rule_detected": len(security_issues),
+                "total_unique": len(unique_issues)
+            }
+        }
         
     except Exception as e:
         return {"issues": [], "error": str(e)}
