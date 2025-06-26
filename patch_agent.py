@@ -1,14 +1,16 @@
 """
-Patch Agent: Automated code fixing for low-risk issues
+Patch Agent: Automated code fixing for low-risk issues with cost tracking
 Generates safe patches for formatting and style problems
 """
 
 import os
 import json
+import time
 import difflib
 from openai import OpenAI
-from typing import List, Dict
+from typing import List, Dict, Tuple  # 确保Tuple在这里！
 from dotenv import load_dotenv
+from cost_logger import log_cost
 
 # Load environment variables
 load_dotenv()
@@ -18,17 +20,21 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Define what we consider "safe to fix"
 LOW_RISK_TYPES = {"indentation", "length", "style"}
 
-def build_patch(diff_text: str, issues: List[Dict]) -> str:
+def build_patch(diff_text: str, issues: List[Dict], pr_url: str = "") -> Tuple[str, Dict]:
     """
-    Generate patches for low-risk issues only
+    Generate patches for low-risk issues only with cost tracking
     
     Args:
         diff_text: Original git diff content
         issues: List of detected issues from analysis
+        pr_url: GitHub PR URL for cost tracking
         
     Returns:
-        str: Unified diff patch or empty string if no safe fixes
+        Tuple[str, Dict]: (patch_content, cost_info)
     """
+    # Start timing
+    start_time = time.time()
+    
     # Debug: Print all issue types
     print(f"🔍 Debug: All detected issues:")
     for issue in issues:
@@ -43,7 +49,14 @@ def build_patch(diff_text: str, issues: List[Dict]) -> str:
     
     if not safe_issues:
         print("🔒 No safe issues to patch - all issues require manual review")
-        return ""
+        cost_info = {
+            "model": "gpt-4o-mini",
+            "total_tokens": 0,
+            "cost_usd": 0,
+            "latency_ms": int((time.time() - start_time) * 1000),
+            "skipped": True
+        }
+        return "", cost_info
     
     print(f"🛠️ Found {len(safe_issues)} safe issues to patch:")
     for issue in safe_issues:
@@ -94,6 +107,21 @@ OUTPUT: Generate unified diff patch with --- and +++ headers:"""
             max_tokens=1500
         )
         
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Log cost information
+        usage = response.usage
+        cost = log_cost(
+            pr_url=pr_url,
+            operation="patch_generation",
+            model="gpt-4o-mini",
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            total_tokens=usage.total_tokens,
+            latency_ms=latency_ms
+        )
+        
         patch_content = response.choices[0].message.content.strip()
         
         # Clean up markdown formatting if present
@@ -117,14 +145,44 @@ OUTPUT: Generate unified diff patch with --- and +++ headers:"""
         if not patch_content.startswith('---') or '+++' not in patch_content:
             print("⚠️ Generated patch doesn't appear to be valid unified diff")
             print(f"🔍 Debug: Patch starts with: '{patch_content[:20]}'")
-            return ""
+            
+            cost_info = {
+                "model": "gpt-4o-mini",
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+                "cost_usd": cost,
+                "latency_ms": latency_ms,
+                "error": "Invalid patch format"
+            }
+            return "", cost_info
         
         print("✅ Patch generated successfully")
-        return patch_content
+        
+        cost_info = {
+            "model": "gpt-4o-mini",
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "cost_usd": cost,
+            "latency_ms": latency_ms
+        }
+        
+        return patch_content, cost_info
         
     except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
         print(f"❌ Error generating patch: {str(e)}")
-        return ""
+        
+        cost_info = {
+            "model": "gpt-4o-mini",
+            "total_tokens": 0,
+            "cost_usd": 0,
+            "latency_ms": latency_ms,
+            "error": str(e)
+        }
+        
+        return "", cost_info
 
 def validate_patch_safety(patch_content: str) -> bool:
     """
@@ -207,6 +265,14 @@ def format_patch_summary(issues: List[Dict]) -> str:
     ])
     
     return "\n".join(summary_lines)
+
+# Backward compatibility wrapper
+def build_patch_legacy(diff_text: str, issues: List[Dict]) -> str:
+    """
+    Legacy function signature for backward compatibility
+    """
+    patch_content, _ = build_patch(diff_text, issues, "")
+    return patch_content
 
 # Test function
 if __name__ == "__main__":

@@ -8,16 +8,21 @@ from architect import architect
 from post_comment import post_comment, format_review_comment
 from patch_agent import build_patch, format_patch_summary
 from create_patch_pr import create_patch_pr_workflow
+from cost_logger import get_total_cost_for_pr, generate_cost_summary
 
-# Define state schema for the multi-agent workflow with patch capability
+# Define state schema for the multi-agent workflow with patch capability and cost tracking
 class ReviewState(TypedDict):
     pr_url: str
     diff_content: str
     nitpicker_result: dict
+    nitpicker_cost: dict
     architect_result: dict
     patch_content: str
+    patch_cost: dict
     patch_pr_url: str
     comment_posted: bool
+    total_cost: float
+    total_tokens: int
     error: str
 
 def fetch_diff_node(state: ReviewState) -> ReviewState:
@@ -35,10 +40,14 @@ def fetch_diff_node(state: ReviewState) -> ReviewState:
             "pr_url": state["pr_url"],
             "diff_content": diff,
             "nitpicker_result": {},
+            "nitpicker_cost": {},
             "architect_result": {},
             "patch_content": "",
+            "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": 0.0,
+            "total_tokens": 0,
             "error": ""
         }
     except Exception as e:
@@ -48,10 +57,14 @@ def fetch_diff_node(state: ReviewState) -> ReviewState:
             "pr_url": state["pr_url"],
             "diff_content": "",
             "nitpicker_result": {},
+            "nitpicker_cost": {},
             "architect_result": {},
             "patch_content": "",
+            "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": 0.0,
+            "total_tokens": 0,
             "error": error_msg
         }
 
@@ -67,18 +80,25 @@ def patch_node(state: ReviewState) -> ReviewState:
         
         # Generate patch for low-risk issues
         issues = state["architect_result"].get("issues", [])
-        patch_content = build_patch(state["diff_content"], issues)
+        patch_content, patch_cost_info = build_patch(state["diff_content"], issues, state["pr_url"])
         
         if not patch_content:
             print("⏭️ No safe issues to patch - skipping patch creation")
+            total_cost = state["total_cost"] + patch_cost_info.get("cost_usd", 0.0)
+            total_tokens = state["total_tokens"] + patch_cost_info.get("total_tokens", 0)
+            
             return {
                 "pr_url": state["pr_url"],
                 "diff_content": state["diff_content"],
                 "nitpicker_result": state["nitpicker_result"],
+                "nitpicker_cost": state["nitpicker_cost"],
                 "architect_result": state["architect_result"],
                 "patch_content": "",
+                "patch_cost": patch_cost_info,
                 "patch_pr_url": "",
                 "comment_posted": False,
+                "total_cost": total_cost,
+                "total_tokens": total_tokens,
                 "error": ""
             }
         
@@ -101,14 +121,22 @@ def patch_node(state: ReviewState) -> ReviewState:
         else:
             print("⚠️ Patch PR creation failed, but analysis completed")
         
+        # Calculate total cost
+        total_cost = state["total_cost"] + patch_cost_info.get("cost_usd", 0.0)
+        total_tokens = state["total_tokens"] + patch_cost_info.get("total_tokens", 0)
+        
         return {
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": state["nitpicker_result"],
+            "nitpicker_cost": state["nitpicker_cost"],
             "architect_result": state["architect_result"],
             "patch_content": patch_content,
+            "patch_cost": patch_cost_info,
             "patch_pr_url": patch_pr_url or "",
             "comment_posted": False,
+            "total_cost": total_cost,
+            "total_tokens": total_tokens,
             "error": ""
         }
         
@@ -136,7 +164,7 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
     
     try:
         print("🤖 Running AI code analysis + OWASP security checks...")
-        result = nitpick(state["diff_content"])
+        result, cost_info = nitpick(state["diff_content"], state["pr_url"])
         
         # Show summary
         issues_count = len(result.get("issues", []))
@@ -153,10 +181,14 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": result,
+            "nitpicker_cost": cost_info,
             "architect_result": {},
             "patch_content": "",
+            "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": cost_info.get("cost_usd", 0.0),
+            "total_tokens": cost_info.get("total_tokens", 0),
             "error": ""
         }
     except Exception as e:
@@ -195,10 +227,14 @@ def architect_node(state: ReviewState) -> ReviewState:
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": state["nitpicker_result"],
+            "nitpicker_cost": state["nitpicker_cost"],
             "architect_result": result,
             "patch_content": "",
+            "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": state["total_cost"],
+            "total_tokens": state["total_tokens"],
             "error": ""
         }
     except Exception as e:
@@ -316,10 +352,14 @@ def main():
         "pr_url": pr_url,
         "diff_content": "",
         "nitpicker_result": {},
+        "nitpicker_cost": {},
         "architect_result": {},
         "patch_content": "",
+        "patch_cost": {},
         "patch_pr_url": "",
         "comment_posted": False,
+        "total_cost": 0.0,
+        "total_tokens": 0,
         "error": ""
     }
     
@@ -346,8 +386,32 @@ def main():
             print(f"   - Comment Posted: {'✅ Yes' if final_state['comment_posted'] else '❌ Failed'}")
             print(f"   - Patch PR Created: {'✅ Yes' if final_state.get('patch_pr_url') else '⏭️ Skipped'}")
             
+            # Cost summary
+            total_cost = final_state.get('total_cost', 0.0)
+            total_tokens = final_state.get('total_tokens', 0)
+            nitpicker_cost = final_state.get('nitpicker_cost', {})
+            patch_cost = final_state.get('patch_cost', {})
+            
+            print(f"\n💰 COST ANALYSIS")
+            print(f"   - Total Cost: ${total_cost:.6f}")
+            print(f"   - Total Tokens: {total_tokens:,}")
+            print(f"   - Nitpicker: ${nitpicker_cost.get('cost_usd', 0.0):.6f} ({nitpicker_cost.get('total_tokens', 0)} tokens)")
+            if patch_cost.get('total_tokens', 0) > 0:
+                print(f"   - Patch Gen: ${patch_cost.get('cost_usd', 0.0):.6f} ({patch_cost.get('total_tokens', 0)} tokens)")
+            
+            # Performance metrics
+            nitpicker_latency = nitpicker_cost.get('latency_ms', 0)
+            patch_latency = patch_cost.get('latency_ms', 0)
+            total_latency = nitpicker_latency + patch_latency
+            
+            print(f"\n⚡ PERFORMANCE METRICS")
+            print(f"   - Total Latency: {total_latency:,}ms ({total_latency/1000:.2f}s)")
+            print(f"   - AI Analysis: {nitpicker_latency:,}ms")
+            if patch_latency > 0:
+                print(f"   - Patch Generation: {patch_latency:,}ms")
+            
             if final_state.get('patch_pr_url'):
-                print(f"   - Patch PR URL: {final_state['patch_pr_url']}")
+                print(f"\n🔗 Patch PR URL: {final_state['patch_pr_url']}")
             
             # Show issues breakdown
             issues = architect_result.get("issues", [])
@@ -363,9 +427,24 @@ def main():
                     
                     print(f"   {severity_emoji} Line {issue['line']} ({issue['type']}): {issue['comment']}")
             
-            # Pretty print full JSON for debugging
-            print(f"\n🔍 Full Analysis Results:")
-            print(json.dumps(architect_result, indent=2, ensure_ascii=False))
+            # Generate cost summary for logs
+            cost_summary = get_total_cost_for_pr(pr_url)
+            if cost_summary['operations'] > 0:
+                print(f"\n📊 SESSION SUMMARY")
+                print(f"   - Average Cost/Operation: ${cost_summary['total_cost']/cost_summary['operations']:.6f}")
+                print(f"   - Average Latency: {cost_summary['avg_latency_ms']:.0f}ms")
+            
+            # Print abbreviated JSON for debugging (without cost details to avoid clutter)
+            print(f"\n🔍 Analysis Results Summary:")
+            summary_json = {
+                "total_issues": summary.get("total_issues", 0),
+                "risk_level": summary.get("risk_level", "unknown"),
+                "security_issues": summary.get("security_issues", 0),
+                "cost_usd": total_cost,
+                "tokens": total_tokens,
+                "latency_ms": total_latency
+            }
+            print(json.dumps(summary_json, indent=2))
                 
     except Exception as e:
         print(f"❌ Workflow execution failed: {str(e)}")

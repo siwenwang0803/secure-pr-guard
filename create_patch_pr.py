@@ -58,8 +58,24 @@ def create_patch_branch(owner: str, repo: str, base_sha: str, pr_number: str) ->
     Returns:
         str: New branch name
     """
-    # Generate unique branch name
-    branch_name = f"auto-patch/pr-{pr_number}-{base_sha[:7]}"
+    import time
+    
+    # Generate unique branch name with timestamp
+    timestamp = int(time.time())
+    branch_name = f"auto-patch/pr-{pr_number}-{base_sha[:7]}-{timestamp}"
+    
+    print(f"🌿 Creating branch: {branch_name}")
+    
+    # Check if branch already exists
+    check_url = f"https://api.github.com/repos/{owner}/{repo}/git/ref/heads/{branch_name}"
+    check_response = requests.get(check_url, headers=HEADERS)
+    
+    if check_response.status_code == 200:
+        print(f"⚠️ Branch {branch_name} already exists, trying alternative name")
+        # Add extra randomness
+        import random
+        branch_name = f"auto-patch/pr-{pr_number}-{base_sha[:7]}-{timestamp}-{random.randint(100,999)}"
+        print(f"🌿 Trying alternative branch: {branch_name}")
     
     # Create branch via GitHub API
     api_url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
@@ -70,12 +86,22 @@ def create_patch_branch(owner: str, repo: str, base_sha: str, pr_number: str) ->
     }
     
     try:
+        print(f"🔍 Debug: Creating branch with SHA: {base_sha}")
+        print(f"🔍 Debug: Payload: {json.dumps(payload, indent=2)}")
+        
         response = requests.post(api_url, headers=HEADERS, json=payload)
-        response.raise_for_status()
-        print(f"✅ Created branch: {branch_name}")
-        return branch_name
+        
+        if response.status_code == 201:
+            print(f"✅ Created branch: {branch_name}")
+            return branch_name
+        else:
+            print(f"❌ Error creating branch: {response.status_code} - {response.text}")
+            print(f"🔍 Debug: Request URL: {api_url}")
+            print(f"🔍 Debug: Headers: {dict(HEADERS)}")
+            return ""
+            
     except Exception as e:
-        print(f"❌ Error creating branch: {str(e)}")
+        print(f"❌ Exception creating branch: {str(e)}")
         return ""
 
 def apply_patch_to_files(patch_content: str, owner: str, repo: str, branch_name: str) -> bool:
@@ -323,6 +349,16 @@ def create_patch_pr_workflow(owner: str, repo: str, pr_number: str,
     base_branch = pr_info["base"]["ref"]
     
     print(f"📋 Base SHA: {base_sha[:12]}..., Base branch: {base_branch}")
+    
+    # Validate SHA exists
+    sha_check_url = f"https://api.github.com/repos/{owner}/{repo}/git/commits/{base_sha}"
+    sha_response = requests.get(sha_check_url, headers=HEADERS)
+    
+    if sha_response.status_code != 200:
+        print(f"❌ Invalid SHA {base_sha}: {sha_response.status_code}")
+        return None
+    
+    print(f"✅ SHA validated: {base_sha}")
     
     # Create patch branch
     patch_branch = create_patch_branch(owner, repo, base_sha, pr_number)
