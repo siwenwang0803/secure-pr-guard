@@ -6,6 +6,8 @@ from fetch_diff import fetch_pr_diff
 from nitpicker import nitpick
 from architect import architect
 from post_comment import post_comment, format_review_comment
+from patch_agent import build_patch
+from create_patch_pr import create_branch_and_commit, open_pr
 
 # Define state schema for the multi-agent workflow
 class ReviewState(TypedDict):
@@ -14,6 +16,8 @@ class ReviewState(TypedDict):
     nitpicker_result: dict
     architect_result: dict
     comment_posted: bool
+    patch_content: str
+    patch_pr_url: str
     error: str
 
 def fetch_diff_node(state: ReviewState) -> ReviewState:
@@ -33,6 +37,8 @@ def fetch_diff_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": {},
             "architect_result": {},
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": ""
         }
     except Exception as e:
@@ -44,6 +50,8 @@ def fetch_diff_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": {},
             "architect_result": {},
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": error_msg
         }
 
@@ -76,6 +84,8 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": result,
             "architect_result": {},
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": ""
         }
     except Exception as e:
@@ -87,6 +97,8 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": {},
             "architect_result": {},
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": error_msg
         }
 
@@ -116,6 +128,8 @@ def architect_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": state["nitpicker_result"],
             "architect_result": result,
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": ""
         }
     except Exception as e:
@@ -127,12 +141,70 @@ def architect_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": state["nitpicker_result"],
             "architect_result": {},
             "comment_posted": False,
+            "patch_content": "",
+            "patch_pr_url": "",
+            "error": error_msg
+        }
+
+def patch_node(state: ReviewState) -> ReviewState:
+    """Node 4: Generate patches for low-risk issues"""
+    if state.get("error"):
+        return state
+    
+    try:
+        # 检查是否有architect结果
+        if not state.get("architect_result") or not state["architect_result"].get("issues"):
+            return state  # no issues to fix
+        
+        patch = build_patch(state["diff_content"], state["architect_result"]["issues"])
+        if not patch:
+            return state  # nothing to fix
+        
+        # 解析URL获取仓库信息
+        owner, repo, _, pr_num = state["pr_url"].split("/")[3:7]
+        
+        # 获取 PR base commit SHA
+        import requests, os
+        token = os.getenv("GITHUB_TOKEN")
+        base_sha = requests.get(
+            f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_num}",
+            headers={"Authorization": f"token {token}"}
+        ).json()["head"]["sha"]
+        
+        # 创建分支和提交
+        branch = create_branch_and_commit(owner, repo, base_sha, patch)
+        url = open_pr(owner, repo, branch, pr_num)
+        print(f"🛠️ Patch PR created: {url}")
+        
+        # 返回更新的state
+        return {
+            "pr_url": state["pr_url"],
+            "diff_content": state["diff_content"],
+            "nitpicker_result": state["nitpicker_result"],
+            "architect_result": state["architect_result"],
+            "comment_posted": state.get("comment_posted", False),
+            "patch_content": patch,
+            "patch_pr_url": url,
+            "error": ""
+        }
+        
+    except Exception as e:
+        error_msg = f"Patch generation failed: {str(e)}"
+        print(f"❌ {error_msg}")
+        return {
+            "pr_url": state["pr_url"],
+            "diff_content": state["diff_content"],
+            "nitpicker_result": state["nitpicker_result"],
+            "architect_result": state["architect_result"],
+            "comment_posted": state.get("comment_posted", False),
+            "patch_content": "",
+            "patch_pr_url": "",
             "error": error_msg
         }
 
 def comment_node(state: ReviewState) -> ReviewState:
     """
-    Node 4: Post formatted comment to GitHub PR
+    Node 5: Post formatted comment to GitHub PR
     """
     if state.get("error"):
         return state
@@ -160,6 +232,8 @@ def comment_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": state["nitpicker_result"],
             "architect_result": state["architect_result"],
             "comment_posted": success,
+            "patch_content": state.get("patch_content", ""),
+            "patch_pr_url": state.get("patch_pr_url", ""),
             "error": "" if success else "Comment posting failed"
         }
     except Exception as e:
@@ -171,6 +245,8 @@ def comment_node(state: ReviewState) -> ReviewState:
             "nitpicker_result": state["nitpicker_result"],
             "architect_result": state["architect_result"],
             "comment_posted": False,
+            "patch_content": state.get("patch_content", ""),
+            "patch_pr_url": state.get("patch_pr_url", ""),
             "error": error_msg
         }
 
@@ -185,13 +261,15 @@ def create_review_graph():
     graph.add_node("fetch_diff", fetch_diff_node)
     graph.add_node("nitpicker", nitpicker_node)
     graph.add_node("architect", architect_node)
+    graph.add_node("patch", patch_node)
     graph.add_node("comment", comment_node)
     
     # Define edges (workflow sequence)
     graph.add_edge(START, "fetch_diff")
     graph.add_edge("fetch_diff", "nitpicker")
     graph.add_edge("nitpicker", "architect")
-    graph.add_edge("architect", "comment")
+    graph.add_edge("architect", "patch")
+    graph.add_edge("patch", "comment")
     graph.add_edge("comment", END)
     
     # Compile the graph
@@ -216,7 +294,7 @@ def main():
     
     print("🚀 Starting Multi-Agent PR Review Workflow")
     print("=" * 60)
-    print("📋 Workflow: Fetch → Nitpicker → Architect → Comment")
+    print("📋 Workflow: Fetch → Nitpicker → Architect → Patch → Comment")
     print("=" * 60)
     
     # Create and run the workflow
@@ -229,6 +307,8 @@ def main():
         "nitpicker_result": {},
         "architect_result": {},
         "comment_posted": False,
+        "patch_content": "",
+        "patch_pr_url": "",
         "error": ""
     }
     
@@ -253,6 +333,12 @@ def main():
             print(f"   - Total Issues: {summary.get('total_issues', 0)}")
             print(f"   - Security Issues: {summary.get('security_issues', 0)}")
             print(f"   - Comment Posted: {'✅ Yes' if final_state['comment_posted'] else '❌ Failed'}")
+            print(f"   - Patch Generated: {'✅ Yes' if final_state['patch_content'] else '❌ No'}")
+            print(f"   - Patch PR Created: {'✅ Yes' if final_state['patch_pr_url'] else '❌ No'}")
+            
+            # Show patch PR URL if created
+            if final_state['patch_pr_url']:
+                print(f"🛠️ Patch PR: {final_state['patch_pr_url']}")
             
             # Show issues breakdown
             issues = architect_result.get("issues", [])
