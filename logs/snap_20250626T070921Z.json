@@ -1,0 +1,14 @@
+{
+  "timestamp": "20250626T070921Z",
+  "pr_url": "https://github.com/siwenwang0803/secure-pr-guard/pull/4",
+  "final_state": {
+    "total_cost": 0.30825,
+    "total_tokens": 2055,
+    "comment_posted": true,
+    "patch_pr_url": "https://github.com/siwenwang0803/secure-pr-guard/pull/5"
+  },
+  "execution_metadata": {
+    "workflow_version": "v2.0-cost-monitoring",
+    "status": "completed"
+  }
+}
