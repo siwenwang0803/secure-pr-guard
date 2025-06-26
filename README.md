@@ -116,7 +116,7 @@ cp .env.example .env
 ### Usage
 
 ```bash
-# Analyze a GitHub PR
+# Analyze a GitHub PR (performs complete workflow: analysis + auto-patch + comment)
 python graph_review.py https://github.com/owner/repo/pull/123
 
 # Generate workflow diagram

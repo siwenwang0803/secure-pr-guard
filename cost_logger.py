@@ -82,6 +82,11 @@ def log_cost(pr_url: str, operation: str, model: str,
             latency_ms
         ])
     
+    # 额外记录详细分析数据
+    print(f"📊 Token Analysis: {prompt_tokens} prompt + {completion_tokens} completion = {total_tokens} total")
+    prompt_ratio = (prompt_tokens / total_tokens * 100) if total_tokens > 0 else 0
+    print(f"📊 Prompt Efficiency: {prompt_ratio:.1f}% prompt tokens")
+    
     print(f"💰 {operation}: ${cost:.5f} | {total_tokens} tokens | {latency_ms}ms")
     return cost
 
