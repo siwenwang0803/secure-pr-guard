@@ -406,32 +406,6 @@ if __name__ == "__main__" and os.getenv("GEN_GRAPH"):
     # Execute workflow
     try:
         final_state = workflow.invoke(initial_state)
-        print("🔍 DEBUG: About to save snapshot...") 
-        # Save execution snapshot
-        try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            snapshot_path = f"logs/snap_{timestamp}.json"
-            
-            os.makedirs("logs", exist_ok=True)
-            
-            snapshot_data = {
-                "timestamp": timestamp,
-                "pr_url": pr_url,
-                "final_state": dict(final_state),
-                "execution_metadata": {
-                    "total_cost": final_state.get("total_cost", 0.0),
-                    "total_tokens": final_state.get("total_tokens", 0),
-                    "workflow_version": "v2.0"
-                }
-            }
-            
-            with open(snapshot_path, 'w') as f:
-                json.dump(snapshot_data, f, indent=2, default=str)
-            
-            print(f"📸 Execution snapshot saved: {snapshot_path}")
-            
-        except Exception as e:
-            print(f"⚠️ Failed to save snapshot: {str(e)}")
         
         print("\n" + "=" * 70)
         print("📊 WORKFLOW RESULTS")
@@ -514,9 +488,7 @@ if __name__ == "__main__" and os.getenv("GEN_GRAPH"):
                 
     except Exception as e:
         print(f"❌ Workflow execution failed: {str(e)}")
-    print(f"🔍 DEBUG: Exception details: {type(e).__name__}: {e}")
-    sys.exit(1)
-
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
