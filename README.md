@@ -61,8 +61,30 @@ graph TD
 ## 📊 Performance Metrics
 
 - **Average Cost**: $0.31 per PR review
-- **Response Time**: ~17 seconds end-to-end
+- **Response Time**: ~17 seconds end-to-end  
 - **Detection Accuracy**: 95%+ for formatting issues, 85%+ for security patterns
+
+## 🔍 Observability & Monitoring
+
+Real-time observability powered by **Grafana Cloud + OpenTelemetry**:
+
+### Key Metrics Dashboard
+- **💰 Cost Tracking**: Live cost analysis by operation ($0.13 nitpicker, $0.21 patch gen)
+- **⚡ Latency Monitoring**: End-to-end performance tracking (6-8s avg per operation)  
+- **🔤 Token Analytics**: Usage patterns and efficiency metrics (70% prompt, 30% completion)
+
+![Dashboard](docs/dashboard-example.md)
+
+### Enterprise Observability
+```bash
+# Metrics exported to Grafana Cloud
+Service: secure-pr-guard v2.0
+Traces: ✅ Active (OTLP HTTP)
+Spans: nitpicker_analysis, patch_generation
+Attributes: latency_ms, total_tokens, cost_usd, pr_url
+```
+
+**Interview Ready**: *"My Agent averages $0.31 cost with 14.8s latency per review"*
 
 ## 🏗 Project Structure
 

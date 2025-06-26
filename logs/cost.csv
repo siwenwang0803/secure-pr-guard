@@ -7,3 +7,5 @@ timestamp,pr_url,operation,model,prompt_tokens,completion_tokens,total_tokens,co
 1750918982,https://github.com/siwenwang0803/secure-pr-guard/pull/4,patch_generation,gpt-4o-mini,968,448,1416,0.212400,8507
 1750919195,https://github.com/siwenwang0803/secure-pr-guard/pull/4,nitpicker_analysis,gpt-4o-mini,583,227,810,0.121500,6470
 1750919202,https://github.com/siwenwang0803/secure-pr-guard/pull/4,patch_generation,gpt-4o-mini,938,444,1382,0.207300,6637
+1750924122,https://github.com/siwenwang0803/secure-pr-guard/pull/4,nitpicker_analysis,gpt-4o-mini,583,290,873,0.130950,6844
+1750924130,https://github.com/siwenwang0803/secure-pr-guard/pull/4,patch_generation,gpt-4o-mini,1003,424,1427,0.214050,7957

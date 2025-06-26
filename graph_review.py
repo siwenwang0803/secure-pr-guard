@@ -3,6 +3,7 @@ from typing_extensions import TypedDict
 import sys
 import json
 import os
+import time
 from datetime import datetime, timezone
 from fetch_diff import fetch_pr_diff
 from nitpicker import nitpick
@@ -11,6 +12,43 @@ from post_comment import post_comment, format_review_comment
 from patch_agent import build_patch, format_patch_summary
 from create_patch_pr import create_patch_pr_workflow
 from cost_logger import get_total_cost_for_pr, generate_cost_summary
+
+# OpenTelemetry setup for Grafana Cloud
+try:
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    # Initialize tracer only if OTLP_ENDPOINT is configured
+    if os.getenv("OTLP_ENDPOINT"):
+        resource = Resource(attributes={
+            "service.name": "secure-pr-guard",
+            "service.version": "v2.0",
+            "environment": "production"
+        })
+        
+        provider = TracerProvider(resource=resource)
+        
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=os.getenv("OTLP_ENDPOINT") + "/v1/traces",
+            headers=(("Authorization", f"Bearer {os.getenv('OTLP_API_KEY')}"),),
+        )
+        
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        trace.set_tracer_provider(provider)
+        tracer = trace.get_tracer("secure-pr-guard")
+        print("📊 Observability: Connected to Grafana Cloud")
+    else:
+        tracer = None
+        
+except ImportError:
+    tracer = None
+    print("⚠️ OpenTelemetry not installed - observability disabled")
 
 # Define state schema for the multi-agent workflow with patch capability and cost tracking
 class ReviewState(TypedDict):
@@ -80,9 +118,27 @@ def patch_node(state: ReviewState) -> ReviewState:
     try:
         print("🛠️ Generating patches for safe formatting issues...")
         
+        # Add observability span
+        span_context = None
+        if tracer:
+            span_context = tracer.start_span("patch_generation")
+            span_context.set_attribute("pr_url", state["pr_url"])
+            span_context.__enter__()
+        
         # Generate patch for low-risk issues
+        start_time = time.time()
         issues = state["architect_result"].get("issues", [])
         patch_content, patch_cost_info = build_patch(state["diff_content"], issues, state["pr_url"])
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Record metrics in span
+        if span_context:
+            span_context.set_attribute("latency_ms", latency_ms)
+            span_context.set_attribute("total_tokens", patch_cost_info.get("total_tokens", 0))
+            span_context.set_attribute("cost_usd", patch_cost_info.get("cost_usd", 0.0))
+            span_context.set_attribute("patch_generated", bool(patch_content))
+            span_context.set_attribute("safe_issues_count", len([i for i in issues if i.get("type") in {"indentation", "length", "style"}]))
+            span_context.__exit__(None, None, None)
         
         if not patch_content:
             print("⏭️ No safe issues to patch - skipping patch creation")
@@ -166,7 +222,27 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
     
     try:
         print("🤖 Running AI code analysis + OWASP security checks...")
+        
+        # Add observability span
+        span_context = None
+        if tracer:
+            span_context = tracer.start_span("nitpicker_analysis")
+            span_context.set_attribute("pr_url", state["pr_url"])
+            span_context.__enter__()
+        
+        start_time = time.time()
         result, cost_info = nitpick(state["diff_content"], state["pr_url"])
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Record metrics in span
+        if span_context:
+            span_context.set_attribute("latency_ms", latency_ms)
+            span_context.set_attribute("total_tokens", cost_info.get("total_tokens", 0))
+            span_context.set_attribute("prompt_tokens", cost_info.get("prompt_tokens", 0))
+            span_context.set_attribute("completion_tokens", cost_info.get("completion_tokens", 0))
+            span_context.set_attribute("cost_usd", cost_info.get("cost_usd", 0.0))
+            span_context.set_attribute("model", cost_info.get("model", "gpt-4o-mini"))
+            span_context.__exit__(None, None, None)
         
         # Show summary
         issues_count = len(result.get("issues", []))
@@ -333,43 +409,50 @@ def main():
         print("Example: python graph_review.py https://github.com/owner/repo/pull/123")
         sys.exit(1)
 
-# Flowchart generation (run once with GEN_GRAPH=1)
-if __name__ == "__main__" and os.getenv("GEN_GRAPH"):
-    print("🎨 Generating workflow flowchart...")
-    
-    # Create docs directory
-    os.makedirs("docs", exist_ok=True)
-    
-    # Create raw graph for visualization
-    raw_graph, _ = create_review_graph()
-    
-    try:
-        # Generate flowchart
-        graph_image = raw_graph.get_graph().draw_mermaid()
+if __name__ == "__main__":
+    # Flowchart generation (run once with GEN_GRAPH=1)
+    if os.getenv("GEN_GRAPH"):
+        print("🎨 Generating workflow flowchart...")
         
-        # Save as text file first (Mermaid format)
-        with open("docs/flowchart.mmd", "w") as f:
-            f.write(graph_image)
+        # Create docs directory
+        os.makedirs("docs", exist_ok=True)
         
-        print("✅ Mermaid flowchart generated: docs/flowchart.mmd")
-        print("📝 To convert to PNG, visit: https://mermaid.live/ and paste the content")
-        print("🔗 Or use: npx @mermaid-js/mermaid-cli -i docs/flowchart.mmd -o docs/flowchart.png")
+        # Create raw graph for visualization
+        raw_graph, _ = create_review_graph()
         
-        # Also try direct PNG generation if dependencies available
         try:
-            png_data = raw_graph.get_graph().draw_png()
-            with open("docs/flowchart.png", "wb") as f:
-                f.write(png_data)
-            print("✅ PNG flowchart generated: docs/flowchart.png")
-        except Exception as png_error:
-            print(f"⚠️ PNG generation failed: {png_error}")
-            print("📝 Manual conversion recommended using Mermaid Live Editor")
+            # Generate flowchart
+            graph_image = raw_graph.get_graph().draw_mermaid()
             
-    except Exception as e:
-        print(f"❌ Flowchart generation failed: {str(e)}")
-        print("💡 Try: pip install graphviz and ensure Graphviz is installed on system")
+            # Save as text file first (Mermaid format)
+            with open("docs/flowchart.mmd", "w") as f:
+                f.write(graph_image)
+            
+            print("✅ Mermaid flowchart generated: docs/flowchart.mmd")
+            print("📝 To convert to PNG, visit: https://mermaid.live/ and paste the content")
+            print("🔗 Or use: npx @mermaid-js/mermaid-cli -i docs/flowchart.mmd -o docs/flowchart.png")
+            
+            # Also try direct PNG generation if dependencies available
+            try:
+                png_data = raw_graph.get_graph().draw_png()
+                with open("docs/flowchart.png", "wb") as f:
+                    f.write(png_data)
+                print("✅ PNG flowchart generated: docs/flowchart.png")
+            except Exception as png_error:
+                print(f"⚠️ PNG generation failed: {png_error}")
+                print("📝 Manual conversion recommended using Mermaid Live Editor")
+                
+        except Exception as e:
+            print(f"❌ Flowchart generation failed: {str(e)}")
+            print("💡 Try: pip install graphviz and ensure Graphviz is installed on system")
+        
+        sys.exit(0)
     
-    sys.exit(0)
+    # Main workflow execution
+    if len(sys.argv) != 2:
+        print("Usage: python graph_review.py <PR_URL>")
+        print("Example: python graph_review.py https://github.com/owner/repo/pull/123")
+        sys.exit(1)
     
     pr_url = sys.argv[1]
     
@@ -406,32 +489,6 @@ if __name__ == "__main__" and os.getenv("GEN_GRAPH"):
     # Execute workflow
     try:
         final_state = workflow.invoke(initial_state)
-        print("🔍 DEBUG: About to save snapshot...") 
-        # Save execution snapshot
-        try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            snapshot_path = f"logs/snap_{timestamp}.json"
-            
-            os.makedirs("logs", exist_ok=True)
-            
-            snapshot_data = {
-                "timestamp": timestamp,
-                "pr_url": pr_url,
-                "final_state": dict(final_state),
-                "execution_metadata": {
-                    "total_cost": final_state.get("total_cost", 0.0),
-                    "total_tokens": final_state.get("total_tokens", 0),
-                    "workflow_version": "v2.0"
-                }
-            }
-            
-            with open(snapshot_path, 'w') as f:
-                json.dump(snapshot_data, f, indent=2, default=str)
-            
-            print(f"📸 Execution snapshot saved: {snapshot_path}")
-            
-        except Exception as e:
-            print(f"⚠️ Failed to save snapshot: {str(e)}")
         
         print("\n" + "=" * 70)
         print("📊 WORKFLOW RESULTS")
@@ -514,9 +571,4 @@ if __name__ == "__main__" and os.getenv("GEN_GRAPH"):
                 
     except Exception as e:
         print(f"❌ Workflow execution failed: {str(e)}")
-    print(f"🔍 DEBUG: Exception details: {type(e).__name__}: {e}")
-    sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+        sys.exit(1)
