@@ -2,34 +2,48 @@
 
 ## 🎯 Multi-Agent AI Code Review System
 
+**Objective**: Automatically review GitHub Pull Requests using multi-agent + LLM + OWASP LLM Top-10 rules and generate remediation patches.
+
+## 🏗️ Architecture
+
 ```mermaid
 graph TD
-    START([🚀 Start]) --> fetch_diff[🔍 Fetch Diff<br/>GitHub API Integration<br/>Extract PR Changes]
+    %% GitHub Integration
+    GH[🔗 GitHub PR] --> |"diff fetch"| FD[🔍 Fetch Diff Agent]
     
-    fetch_diff --> nitpicker[🤖 Nitpicker<br/>AI Analysis + OWASP Rules<br/>GPT-4o + Security Patterns]
+    %% Multi-Agent Pipeline
+    FD --> |"raw diff"| NP[🤖 Nitpicker Agent<br/>AI Analysis + OWASP]
+    NP --> |"security issues"| AR[🏗️ Architect Agent<br/>Risk Assessment]
+    AR --> |"prioritized issues"| PA[🛠️ Patch Agent<br/>Auto-Fix Generation]
+    PA --> |"draft PR"| CM[💬 Comment Agent<br/>GitHub Integration]
     
-    nitpicker --> architect[🏗️ Architect<br/>Security Risk Assessment<br/>Priority Classification]
+    %% Output Channels
+    CM --> |"review comment"| GH
+    PA --> |"patch PR"| PR[📝 Draft Pull Request]
     
-    architect --> patch[🛠️ Patch Agent<br/>Auto-Fix Generation<br/>Safe Code Formatting]
+    %% Observability Layer
+    NP -.-> |"traces"| OT[📊 OpenTelemetry<br/>Instrumentation]
+    PA -.-> |"metrics"| OT
+    CM -.-> |"spans"| OT
     
-    patch --> comment[💬 Comment<br/>GitHub Integration<br/>Professional Reporting]
+    %% Monitoring Stack
+    OT --> |"OTLP/HTTP"| GC[☁️ Grafana Cloud<br/>Tempo Traces]
+    GC --> |"TraceQL"| GB[📈 Grafana Dashboard<br/>Metrics & Analytics]
     
-    comment --> END([✅ Complete])
+    %% Cost & Performance Tracking
+    OT -.-> |"cost/tokens"| CSV[📄 logs/cost.csv<br/>Local Analytics]
     
-    classDef startEnd fill:#e1f5fe,stroke:#01579b,stroke-width:3px
-    classDef fetch fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    classDef ai fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    classDef security fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    %% Styling
+    classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef github fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef observability fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef storage fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
     
-    class START,END startEnd
-    class fetch_diff fetch
-    class nitpicker,patch ai
-    class architect security
-    class comment output
+    class FD,NP,AR,PA,CM agent
+    class GH,PR github
+    class OT,GC,GB observability
+    class CSV storage
 ```
-
-**Objective**: Automatically review GitHub Pull Requests using multi-agent + LLM + OWASP LLM Top-10 rules and generate remediation patches.
 
 ## 🔄 Workflow Architecture
 
@@ -64,35 +78,65 @@ graph TD
 - **Response Time**: ~17 seconds end-to-end  
 - **Detection Accuracy**: 95%+ for formatting issues, 85%+ for security patterns
 
-## 🔍 Observability & Monitoring
+## 📊 Observability & Monitoring
 
 Real-time observability powered by **Grafana Cloud + OpenTelemetry**:
 
-### Key Metrics Dashboard
-- **💰 Cost Tracking**: Live cost analysis by operation ($0.13 nitpicker, $0.21 patch gen)
-- **⚡ Latency Monitoring**: End-to-end performance tracking (6-8s avg per operation)  
-- **🔤 Token Analytics**: Usage patterns and efficiency metrics (70% prompt, 30% completion)
+![Live Dashboard](docs/dashboard.png)
 
-📊 **[Live Dashboard Documentation](docs/dashboard-screenshot.md)** | 📋 **[Dashboard JSON](docs/dashboard.json)**
+### 📈 Key Metrics Dashboard
 
-### Enterprise Observability
-```bash
-# Metrics exported to Grafana Cloud
-Service: secure-pr-guard v2.0
-Traces: ✅ Active (OTLP HTTP)
-Spans: nitpicker_analysis, patch_generation
-Attributes: latency_ms, total_tokens, cost_usd, pr_url
+- **⚡ Average Latency**: 1,003ms per operation  
+- **📊 Requests**: 3 workflow executions monitored
+- **🛡️ Error Rate**: 0% (zero failures detected)
+
+### 🔍 TraceQL Queries Used
+
+```traceql
+# Average Latency
+{resource.service.name="my app"} | select(span.elapsed_time)
+
+# Cost Analysis  
+{resource.service.name="my app"} | select(span.cost_usd)
+
+# Token Usage
+{resource.service.name="my app"} | select(span.tokens)
+
+# Operations Breakdown
+{resource.service.name="my app"} | select(span.elapsed_time, span.name) | by(span.name)
 ```
 
-**Interview Ready**: *"My Agent averages $0.31 cost with 14.8s latency per review"*
+### 🏗️ Enterprise Observability Stack
+
+```yaml
+OpenTelemetry Integration:
+  Service: "my app"
+  Traces: ✅ Active (OTLP HTTP)
+  Spans: nitpicker_analysis, patch_generation, pr_review
+  Attributes: elapsed_time, total_tokens, cost_usd, operation_type
+  
+Grafana Cloud:
+  Data Source: Tempo (Distributed Tracing)
+  Panels: Stat, Time Series, Table
+  Calculations: Mean, Count, Rate
+  
+Local Analytics:
+  Cost Tracking: logs/cost.csv 
+  Snapshots: logs/snap_*.json
+  Audit Trail: Complete execution history
+```
+
+**Interview Ready**: *"My multi-agent system averages 1.0s latency with 0% error rate across 3 monitored operations"*
 
 ## 🏗 Project Structure
 
 ```
 secure-pr-guard/
 ├── docs/
-│   ├── flowchart.png          # Auto-generated workflow diagram
-│   └── flowchart.mmd          # Mermaid source
+│   ├── architecture.mmd      # System architecture diagram
+│   ├── dashboard.png         # Live Grafana dashboard screenshot
+│   ├── flowchart.png         # Auto-generated workflow diagram
+│   └── flowchart.mmd         # Mermaid source
 ├── logs/
 │   ├── cost.csv              # Cost tracking data
 │   └── snap_*.json           # Execution snapshots
@@ -105,6 +149,7 @@ secure-pr-guard/
 ├── cost_logger.py           # Enterprise cost monitoring
 ├── post_comment.py          # GitHub comment formatting
 ├── graph_review.py          # Main workflow orchestrator
+├── test_grafana_metrics.py  # Observability testing
 ├── owasp_rules.yaml         # Security rule configuration
 └── requirements.txt         # Python dependencies
 ```
