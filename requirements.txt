@@ -39,6 +39,7 @@ fsspec==2025.5.1
 ghp-import==2.1.0
 google-auth==2.40.3
 googleapis-common-protos==1.70.0
+graphviz==0.21
 grpcio==1.73.0
 h11==0.16.0
 hf-xet==1.1.5
@@ -105,6 +106,7 @@ ormsgpack==1.10.0
 overrides==7.7.0
 packaging==24.2
 paginate==0.5.7
+pandas==2.3.0
 parso==0.8.4
 pathspec==0.12.1
 pdfminer.six==20250506
@@ -135,6 +137,7 @@ PyPika==0.48.9
 pyproject_hooks==1.2.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
+pytz==2025.2
 pyvis==0.3.2
 PyYAML==6.0.2
 pyyaml_env_tag==1.1
@@ -161,6 +164,7 @@ traitlets==5.14.3
 typer==0.16.0
 typing-inspection==0.4.1
 typing_extensions==4.14.0
+tzdata==2025.2
 urllib3==2.5.0
 uv==0.7.15
 uvicorn==0.34.3
