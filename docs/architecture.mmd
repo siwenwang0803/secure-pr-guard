@@ -1,28 +1,28 @@
 graph TD
     %% GitHub Integration
-    GH[🔗 GitHub PR] --> |"diff fetch"| FD[🔍 Fetch Diff Agent]
+    GH["🔗 GitHub PR"] --> |diff fetch| FD["🔍 Fetch Diff Agent"]
     
     %% Multi-Agent Pipeline
-    FD --> |"raw diff"| NP[🤖 Nitpicker Agent<br/>AI Analysis + OWASP]
-    NP --> |"security issues"| AR[🏗️ Architect Agent<br/>Risk Assessment]
-    AR --> |"prioritized issues"| PA[🛠️ Patch Agent<br/>Auto-Fix Generation]
-    PA --> |"draft PR"| CM[💬 Comment Agent<br/>GitHub Integration]
+    FD --> |raw diff| NP["🤖 Nitpicker Agent<br/>AI Analysis + OWASP"]
+    NP --> |security issues| AR["🏗️ Architect Agent<br/>Risk Assessment"]
+    AR --> |prioritized issues| PA["🛠️ Patch Agent<br/>Auto-Fix Generation"]
+    PA --> |draft PR| CM["💬 Comment Agent<br/>GitHub Integration"]
     
     %% Output Channels
-    CM --> |"review comment"| GH
-    PA --> |"patch PR"| PR[📝 Draft Pull Request]
+    CM --> |review comment| GH
+    PA --> |patch PR| PR["📝 Draft Pull Request"]
     
     %% Observability Layer
-    NP -.-> |"traces"| OT[📊 OpenTelemetry<br/>Instrumentation]
-    PA -.-> |"metrics"| OT
-    CM -.-> |"spans"| OT
+    NP -.-> |traces| OT["📊 OpenTelemetry<br/>Instrumentation"]
+    PA -.-> |metrics| OT
+    CM -.-> |spans| OT
     
     %% Monitoring Stack
-    OT --> |"OTLP/HTTP"| GC[☁️ Grafana Cloud<br/>Tempo Traces]
-    GC --> |"TraceQL"| GB[📈 Grafana Dashboard<br/>Metrics & Analytics]
+    OT --> |OTLP HTTP| GC["☁️ Grafana Cloud<br/>Tempo Traces"]
+    GC --> |TraceQL| GB["📈 Grafana Dashboard<br/>Metrics Analytics"]
     
-    %% Cost & Performance Tracking
-    OT -.-> |"cost/tokens"| CSV[📄 logs/cost.csv<br/>Local Analytics]
+    %% Cost Tracking
+    OT -.-> |cost tokens| CSV["📄 logs/cost.csv<br/>Local Analytics"]
     
     %% Styling
     classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px
