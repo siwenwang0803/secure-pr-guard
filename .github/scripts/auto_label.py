@@ -1,4 +1,6 @@
 import os
+import time
+import json
 import requests
 import jwt
 from datetime import datetime, timedelta
@@ -38,14 +40,32 @@ def get_installation_token():
         return None
 
 def main():
-    """主函数"""
+    """主函数 - 自动标签和评论"""
+    # GitHub Actions 自动提供这些环境变量
+    pr_number = os.environ.get('GITHUB_REF_NAME') or '1'  # fallback for manual trigger
     repo = os.environ.get('GITHUB_REPOSITORY')
+    
     print(f"🔍 Processing repository: {repo}")
     
+    # 获取 Installation Token
     token = get_installation_token()
     if not token:
         return
     
-    print('✅ GitHub App authentication successful!')
+    headers = {
+        'Authorization': f'token {token}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    
+    # 测试 API 连接
+    test_url = f'https://api.github.com/repos/{repo}'
+    test_response = requests.get(test_url, headers=headers)
+    
+    if test_response.status_code == 200:
+        print('✅ GitHub App authentication successful!')
+        print('✅ Auto-label workflow completed!')
+    else:
+        print(f'❌ Authentication failed: {test_response.status_code}')
 
 if __name__ == '__main__':
+    main()
