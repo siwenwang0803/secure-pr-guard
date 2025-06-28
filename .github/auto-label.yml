@@ -1,75 +1,40 @@
-name: Auto Label PR with GitHub App
+name: Auto Label PR (GitHub App)
 
 on:
   pull_request:
     types: [opened, reopened]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:        # 手动触发，用来测试 JWT 是否生效
 
 jobs:
   auto-label:
     runs-on: ubuntu-latest
+
+    # 必须有 pr / issues 写权限
     permissions:
       contents: read
       pull-requests: write
       issues: write
-      
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    # 1. 拉代码（可选）
+    - uses: actions/checkout@v4
+
+    # 2. 装 Python 3.11
+    - uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        
-    - name: Install dependencies
+
+    # 3. 安装依赖（PyJWT 才会生成 jwt 模块）
+    - name: Install deps
       run: |
         python -m pip install --upgrade pip
-        pip install requests pyjwt[crypto] python-dotenv
-        
-    - name: Create private key file
-      run: |
-        echo "${{ secrets.APP_PRIVATE_KEY }}" > private-key.pem
-        chmod 600 private-key.pem
-        
-    - name: Auto Label PR
+        pip install PyJWT[crypto] requests
+
+    # 4. 运行脚本
+    - name: Auto-label with GitHub App
       env:
-        GITHUB_APP_ID: ${{ secrets.APP_ID }}
-        GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
-        GITHUB_APP_PRIVATE_KEY_PATH: ./private-key.pem
+        APP_ID:               ${{ secrets.APP_ID }}                # 纯数字
+        INSTALLATION_ID:      ${{ secrets.APP_INSTALLATION_ID }}   # 纯数字
+        PRIVATE_KEY_PEM:      ${{ secrets.APP_PRIVATE_KEY }}       # 整个 PEM，多行 OK
       run: |
-        python -c "
-        import os
-        import requests
-        from github_app import get_github_headers
-        
-        # 获取 PR 信息
-        pr_number = '${{ github.event.pull_request.number }}'
-        repo = '${{ github.repository }}'
-        
-        if pr_number and pr_number != '':
-            headers = get_github_headers()
-            
-            # 添加自测标签
-            labels = ['bot/github-app-tested', 'security/analyzed', 'automated']
-            url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/labels'
-            
-            response = requests.post(url, headers=headers, json={'labels': labels})
-            
-            if response.status_code == 200:
-                print(f'✅ Successfully labeled PR #{pr_number} with: {labels}')
-            else:
-                print(f'❌ Failed to label PR: {response.status_code}')
-                
-            # 添加评论
-            comment = '## 🤖 GitHub App Authentication Test Passed!\n\nThis PR has been automatically labeled using:\n- **Authentication**: GitHub App (JWT + Installation Token)\n- **No PAT Required**: ✅\n- **Enterprise Ready**: ✅\n\n### 🏷️ Applied Labels:\n- bot/github-app-tested - Verified GitHub App auth\n- security/analyzed - Security check passed\n- automated - Automated workflow\n\n___\n*This demonstrates enterprise-grade GitHub App integration without using Personal Access Tokens.*'
-            
-            comment_url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/comments'
-            requests.post(comment_url, headers=headers, json={'body': comment})
-        else:
-            print('No PR number found, skipping labeling')
-        "
-        
-    - name: Clean up
-      if: always()
-      run: rm -f private-key.pem
+        python .github/scripts/auto_label.py
