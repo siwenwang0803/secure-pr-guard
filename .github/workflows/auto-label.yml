@@ -27,15 +27,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests pyjwt[crypto] cryptography
         
-    - name: Create private key file
-      run: |
-        echo "${{ secrets.APP_PRIVATE_KEY }}" > private-key.pem
-        chmod 600 private-key.pem
-        
-    - name: Test GitHub App Authentication
+    - name: Auto Label PR
       env:
         GITHUB_APP_ID: ${{ secrets.APP_ID }}
         GITHUB_APP_INSTALLATION_ID: ${{ secrets.APP_INSTALLATION_ID }}
+        GITHUB_APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
       run: |
         python - << 'EOF'
         import os
@@ -43,18 +39,80 @@ jobs:
         import jwt
         import time
         
-        print("Testing GitHub App authentication...")
+        # 内联 GitHub App 认证代码
+        def get_jwt(app_id, private_key):
+            now = int(time.time())
+            payload = {
+                "iat": now,
+                "exp": now + 600,
+                "iss": app_id
+            }
+            return jwt.encode(payload, private_key, algorithm="RS256")
         
-        # 简单测试
+        def get_installation_token(jwt_token, installation_id):
+            headers = {
+                "Authorization": f"Bearer {jwt_token}",
+                "Accept": "application/vnd.github+json"
+            }
+            url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+            response = requests.post(url, headers=headers)
+            if response.status_code != 201:
+                print(f"Failed to get installation token: {response.status_code}")
+                print(response.text)
+                exit(1)
+            return response.json()["token"]
+        
+        # 主逻辑
+        print("🚀 Starting GitHub App auto-labeling...")
+        
         app_id = os.getenv("GITHUB_APP_ID")
         installation_id = os.getenv("GITHUB_APP_INSTALLATION_ID")
+        private_key = os.getenv("GITHUB_APP_PRIVATE_KEY")
         
-        print(f"App ID: {app_id}")
-        print(f"Installation ID: {installation_id}")
-        
-        if not app_id or not installation_id:
-            print("❌ Missing secrets!")
+        if not all([app_id, installation_id, private_key]):
+            print("❌ Missing required secrets!")
             exit(1)
+            
+        # 手动运行时没有 PR 信息
+        event_name = "${{ github.event_name }}"
+        if event_name == "workflow_dispatch":
+            print("✅ Manual run - authentication test successful!")
+            print(f"App ID: {app_id}")
+            print(f"Installation ID: {installation_id}")
+            
+            # 测试认证
+            jwt_token = get_jwt(app_id, private_key)
+            print("✅ JWT generated")
+            
+            installation_token = get_installation_token(jwt_token, installation_id)
+            print("✅ Installation token obtained")
+            
+            exit(0)
+        
+        # PR 触发时的逻辑
+        pr_number = "${{ github.event.pull_request.number }}"
+        repo = "${{ github.repository }}"
+        
+        print(f"Processing PR #{pr_number}")
+        
+        # 生成 token
+        jwt_token = get_jwt(app_id, private_key)
+        installation_token = get_installation_token(jwt_token, installation_id)
+        
+        headers = {
+            "Authorization": f"Bearer {installation_token}",
+            "Accept": "application/vnd.github+json"
+        }
+        
+        # 添加标签
+        labels = ["bot/github-app-tested", "automated", "secure"]
+        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/labels"
+        
+        response = requests.post(url, headers=headers, json={"labels": labels})
+        
+        if response.status_code == 200:
+            print(f"✅ Successfully labeled PR #{pr_number}")
         else:
-            print("✅ Secrets loaded successfully")
+            print(f"❌ Failed to label: {response.status_code}")
+            print(response.text)
         EOF
