@@ -41,10 +41,27 @@ def get_installation_token():
 
 def main():
     """主函数 - 自动标签和评论"""
-    pr_number = os.environ.get('GITHUB_REF', '').split('/')[-1]
+    # 正确获取 PR 号码的方式
+    event_name = os.environ.get('GITHUB_EVENT_NAME', '')
+    
+    if event_name == 'pull_request':
+        # 从 GitHub 事件上下文获取 PR 号码
+        import json
+        event_path = os.environ.get('GITHUB_EVENT_PATH', '')
+        if event_path:
+            with open(event_path, 'r') as f:
+                event_data = json.load(f)
+                pr_number = str(event_data['pull_request']['number'])
+        else:
+            pr_number = None
+    else:
+        pr_number = None
+    
     repo = os.environ.get('GITHUB_REPOSITORY')
     
     print(f"🔍 Processing repository: {repo}")
+    print(f"🔍 Event: {event_name}")
+    print(f"🔍 PR Number: {pr_number}")
     
     # 获取 Installation Token
     token = get_installation_token()
@@ -56,9 +73,8 @@ def main():
         'Accept': 'application/vnd.github.v3+json'
     }
     
-    # 如果是 PR 触发，添加标签
-    if pr_number and pr_number.isdigit():
-        # 添加标签
+    # 如果有 PR 号码，添加标签
+    if pr_number:
         labels = ['bot/github-app-tested', 'security/analyzed', 'automated']
         url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/labels'
         
@@ -68,6 +84,9 @@ def main():
             print(f'✅ Successfully labeled PR #{pr_number} with: {labels}')
         else:
             print(f'❌ Failed to label PR: {response.status_code}')
+            print(f'Response: {response.text}')
+    else:
+        print('ℹ️ No PR context found, skipping labeling')
     
     print('✅ GitHub App authentication successful!')
     print('✅ Auto-label workflow completed!')
