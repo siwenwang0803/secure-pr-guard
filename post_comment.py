@@ -5,12 +5,26 @@ Posts AI code review results as PR comments
 
 import requests
 import os
+import sys
 from dotenv import load_dotenv
 from datetime import datetime
 
+# 修复路径问题 - 添加父目录到 Python 路径
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
 # Load environment variables
 load_dotenv()
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+# 使用 GitHub App 认证（最小化改动）
+try:
+    from github_auth_adapter import get_github_token
+    GITHUB_TOKEN = get_github_token()
+    print("✅ Using GitHub App authentication for comments")
+except Exception as e:
+    # 如果失败，回退到原来的方式
+    print(f"⚠️  GitHub App auth failed ({e}), using PAT fallback")
+    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 def post_comment(pr_url: str, body: str) -> bool:
     """
