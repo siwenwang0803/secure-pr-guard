@@ -41,8 +41,7 @@ def get_installation_token():
 
 def main():
     """主函数 - 自动标签和评论"""
-    # GitHub Actions 自动提供这些环境变量
-    pr_number = os.environ.get('GITHUB_REF_NAME') or '1'  # fallback for manual trigger
+    pr_number = os.environ.get('GITHUB_REF', '').split('/')[-1]
     repo = os.environ.get('GITHUB_REPOSITORY')
     
     print(f"🔍 Processing repository: {repo}")
@@ -57,15 +56,21 @@ def main():
         'Accept': 'application/vnd.github.v3+json'
     }
     
-    # 测试 API 连接
-    test_url = f'https://api.github.com/repos/{repo}'
-    test_response = requests.get(test_url, headers=headers)
+    # 如果是 PR 触发，添加标签
+    if pr_number and pr_number.isdigit():
+        # 添加标签
+        labels = ['bot/github-app-tested', 'security/analyzed', 'automated']
+        url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/labels'
+        
+        response = requests.post(url, headers=headers, json={'labels': labels})
+        
+        if response.status_code == 200:
+            print(f'✅ Successfully labeled PR #{pr_number} with: {labels}')
+        else:
+            print(f'❌ Failed to label PR: {response.status_code}')
     
-    if test_response.status_code == 200:
-        print('✅ GitHub App authentication successful!')
-        print('✅ Auto-label workflow completed!')
-    else:
-        print(f'❌ Authentication failed: {test_response.status_code}')
+    print('✅ GitHub App authentication successful!')
+    print('✅ Auto-label workflow completed!')
 
 if __name__ == '__main__':
     main()
