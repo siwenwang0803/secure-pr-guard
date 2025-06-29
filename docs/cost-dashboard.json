@@ -1,0 +1,177 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Secure PR Guard - Cost & Performance Monitoring",
+    "tags": ["secure-pr-guard", "cost-monitoring", "ai-operations"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Average/P95 Latency by Operation",
+        "type": "timeseries",
+        "targets": [
+          {
+            "query": "{service.name=\"secure-pr-guard\"} | select(latency.ms) | group_by(operation.type)",
+            "queryType": "traceql",
+            "refId": "A",
+            "datasource": {
+              "type": "tempo",
+              "uid": "tempo"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 2,
+              "fillOpacity": 10
+            },
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "calcs": ["mean", "p95", "max"]
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Cost by Model",
+        "type": "stat",
+        "targets": [
+          {
+            "query": "{service.name=\"secure-pr-guard\"} | select(cost.usd) | group_by(cost.model)",
+            "queryType": "traceql",
+            "refId": "A",
+            "datasource": {
+              "type": "tempo",
+              "uid": "tempo"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.01},
+                {"color": "red", "value": 0.05}
+              ]
+            }
+          }
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": ["sum"]
+          },
+          "colorMode": "value",
+          "graphMode": "area"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Token Usage Split (Prompt vs Completion)",
+        "type": "piechart",
+        "targets": [
+          {
+            "query": "{service.name=\"secure-pr-guard\"} | select(cost.tokens.prompt, cost.tokens.completion)",
+            "queryType": "traceql", 
+            "refId": "A",
+            "datasource": {
+              "type": "tempo",
+              "uid": "tempo"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "palette-classic"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "cost.tokens.prompt"},
+              "properties": [
+                {"id": "displayName", "value": "Prompt Tokens"},
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "cost.tokens.completion"},
+              "properties": [
+                {"id": "displayName", "value": "Completion Tokens"},
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}
+              ]
+            }
+          ]
+        },
+        "options": {
+          "reduceOptions": {
+            "calcs": ["sum"]
+          },
+          "pieType": "pie",
+          "legend": {
+            "displayMode": "list",
+            "placement": "right",
+            "values": ["value", "percent"]
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 37,
+    "version": 1,
+    "uid": "secure-pr-guard-cost",
+    "templating": {
+      "list": [
+        {
+          "name": "operation_type",
+          "label": "Operation Type",
+          "type": "query",
+          "query": "{service.name=\"secure-pr-guard\"} | select(operation.type)",
+          "includeAll": true,
+          "multi": true,
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          }
+        }
+      ]
+    }
+  }
+} 

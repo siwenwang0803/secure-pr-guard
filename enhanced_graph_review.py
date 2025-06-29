@@ -53,16 +53,9 @@ try:
             }
         )
         
-        # Store processor reference for later flush
-        span_processor = BatchSpanProcessor(otlp_exporter)
-        provider.add_span_processor(span_processor)
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer("secure-pr-guard")
-        
-        # Store processor for cleanup
-        global _span_processor
-        _span_processor = span_processor
-        
         print("📊 Observability: Connected to Grafana Cloud")
     else:
         tracer = None
@@ -184,15 +177,6 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
         # Add observability span with standardized attributes
         with tracer.start_as_current_span("nitpicker.analyze") if tracer else nullcontext() as span:
             start_time = time.time()
-            
-            # Set initial attributes BEFORE calling nitpick
-            if span:
-                span.set_attributes({
-                    "operation.type": "nitpicker",
-                    "operation.name": "analyze_code_security",
-                    **extract_pr_metadata(state["pr_url"])
-                })
-            
             result, cost_info = nitpick(state["diff_content"], state["pr_url"])
             latency_ms = int((time.time() - start_time) * 1000)
             
@@ -202,10 +186,14 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
             ai_detected = analysis_summary.get("ai_detected", 0)
             rule_detected = analysis_summary.get("rule_detected", 0)
             
-            # Update span with ALL attributes including cost
+            # Record standardized metrics in span
             if span:
                 span.set_attributes({
-                    # Cost metrics (for cost governance) - THESE ARE THE KEY ONES
+                    # Operation classification (for drill-down)
+                    "operation.type": "nitpicker",
+                    "operation.name": "analyze_code_security",
+                    
+                    # Cost metrics (for cost governance)
                     "cost.usd": cost_info.get("cost_usd", 0.0),
                     "cost.model": cost_info.get("model", "gpt-4o-mini"),
                     "cost.tokens.prompt": cost_info.get("prompt_tokens", 0),
@@ -215,6 +203,9 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
                     # Performance metrics (for SLO)
                     "latency.ms": latency_ms,
                     "latency.api_ms": cost_info.get("latency_ms", 0),
+                    
+                    # Business context
+                    **extract_pr_metadata(state["pr_url"]),
                     
                     # Result metrics
                     "issues.found": issues_count,
@@ -228,10 +219,6 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
                         cost_info.get("prompt_tokens", 0) / cost_info.get("total_tokens", 1), 3
                     ) if cost_info.get("total_tokens", 0) > 0 else 0
                 })
-                
-                # DEBUG: Verify attributes were set
-                print(f"🔍 DEBUG: Set cost.usd = {cost_info.get('cost_usd', 0.0)}")
-                print(f"🔍 DEBUG: Set cost.tokens.total = {cost_info.get('total_tokens', 0)}")
             
             # Show summary
             print(f"📋 Analysis complete:")
@@ -384,7 +371,6 @@ def patch_node(state: ReviewState) -> ReviewState:
             # Count patchable issues
             safe_issues = [i for i in issues if i.get("type") in {"indentation", "length", "style"}]
             
-            # Set initial attributes
             if span:
                 span.set_attributes({
                     "operation.type": "patch",
@@ -397,10 +383,10 @@ def patch_node(state: ReviewState) -> ReviewState:
             patch_content, patch_cost_info = build_patch(state["diff_content"], issues, state["pr_url"])
             latency_ms = int((time.time() - start_time) * 1000)
             
-            # Record ALL metrics including cost
+            # Record standardized metrics
             if span:
                 span.set_attributes({
-                    # Cost metrics - THESE ARE THE KEY ONES
+                    # Cost metrics
                     "cost.usd": patch_cost_info.get("cost_usd", 0.0),
                     "cost.model": patch_cost_info.get("model", "gpt-4o-mini"),
                     "cost.tokens.prompt": patch_cost_info.get("prompt_tokens", 0),
@@ -420,10 +406,6 @@ def patch_node(state: ReviewState) -> ReviewState:
                         patch_cost_info.get("prompt_tokens", 0) / patch_cost_info.get("total_tokens", 1), 3
                     ) if patch_cost_info.get("total_tokens", 0) > 0 else 0
                 })
-                
-                # DEBUG: Verify attributes were set
-                print(f"🔍 DEBUG: Set patch cost.usd = {patch_cost_info.get('cost_usd', 0.0)}")
-                print(f"🔍 DEBUG: Set patch cost.tokens.total = {patch_cost_info.get('total_tokens', 0)}")
             
             if not patch_content:
                 print("⏭️ No safe issues to patch - skipping patch creation")
@@ -622,7 +604,16 @@ def create_review_graph():
 def main():
     """
     Main execution function with observability
+    
     """
+    # Add CLI argument parsing
+    import argparse
+    parser = argparse.ArgumentParser(description='Secure PR Guard - AI-powered PR review')
+    parser.add_argument('pr_url', help='GitHub PR URL to review')
+    parser.add_argument('--profile', action='store_true', help='Output trace URL for profiling')
+    args = parser.parse_args()
+    
+    pr_url = args.pr_url
     # Flowchart generation (run once with GEN_GRAPH=1)
     if os.getenv("GEN_GRAPH"):
         print("🎨 Generating workflow flowchart...")
@@ -702,6 +693,11 @@ def main():
     # Execute workflow with observability
     try:
         with tracer.start_as_current_span("pr_review.workflow") if tracer else nullcontext() as span:
+            trace_id = None
+            if span and args.profile:
+                trace_context = span.get_span_context()
+                trace_id = format(trace_context.trace_id, '032x')
+                print(f"\n🔍 Trace ID: {trace_id}")
             if span:
                 # Extract PR metadata
                 pr_metadata = extract_pr_metadata(pr_url)
@@ -718,6 +714,16 @@ def main():
                 })
             
             final_state = workflow.invoke(initial_state)
+
+            # Output trace URL if profile flag is set
+            if args.profile and trace_id:
+                grafana_url = "https://siwenwang0803.grafana.net"
+                trace_url = f"{grafana_url}/explore?orgId=1&left=%7B%22datasource%22:%22grafanacloud-siwenwang0803-traces%22,%22queries%22:%5B%7B%22query%22:%22{trace_id}%22,%22queryType%22:%22traceql%22%7D%5D%7D"
+                
+                print(f"\n📊 View trace in Grafana:")
+                print(f"   {trace_url}")
+                print(f"\n💡 Or search in Grafana Explore with:")
+                print(f"   Trace ID: {trace_id}")
             
             # Record final summary metrics
             if span:
@@ -845,28 +851,6 @@ def main():
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
         sys.exit(1)
-    
-    finally:
-        # Critical: Force flush all spans to Grafana Cloud
-        if tracer:
-            try:
-                print("🔭 Flushing telemetry data to Grafana Cloud...")
-                # Use the stored processor reference
-                if '_span_processor' in globals():
-                    _span_processor.force_flush(timeout_millis=5000)
-                    print("✅ Telemetry data sent successfully")
-                else:
-                    # Fallback method
-                    provider = trace.get_tracer_provider()
-                    if hasattr(provider, 'force_flush'):
-                        provider.force_flush(timeout_millis=5000)
-                        print("✅ Telemetry data sent (fallback)")
-            except Exception as flush_error:
-                print(f"⚠️ Telemetry flush failed: {flush_error}")
-                # Give time for automatic flush
-                import time
-                time.sleep(2)
-                print("✅ Fallback: Waited for automatic flush")
 
 if __name__ == "__main__":
     main()

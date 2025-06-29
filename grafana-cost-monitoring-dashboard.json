@@ -1,0 +1,690 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Secure PR Guard - Cost & Performance Monitoring",
+    "tags": [
+      "secure-pr-guard",
+      "cost-monitoring", 
+      "ai-operations",
+      "opentelemetry"
+    ],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Avg / P95 Latency by Operation",
+        "type": "timeseries",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A",
+            "query": "{service.name=\"secure-pr-guard\"} | select(latency.ms) | group_by(operation.type)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "auto",
+              "pointSize": 5,
+              "stacking": {
+                "mode": "none",
+                "group": "A"
+              },
+              "axisPlacement": "auto",
+              "axisLabel": "",
+              "axisColorMode": "text",
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "axisCenteredZero": false,
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 2000
+                },
+                {
+                  "color": "red", 
+                  "value": 5000
+                }
+              ]
+            },
+            "unit": "ms",
+            "min": 0
+          },
+          "overrides": []
+        },
+        "options": {
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true,
+            "calcs": [
+              "mean",
+              "p95",
+              "max"
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Cost by Model",
+        "type": "stat",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A", 
+            "query": "{service.name=\"secure-pr-guard\"} | select(cost.usd) | group_by(cost.model)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.01
+                },
+                {
+                  "color": "orange",
+                  "value": 0.05
+                },
+                {
+                  "color": "red",
+                  "value": 0.1
+                }
+              ]
+            },
+            "unit": "currencyUSD",
+            "min": 0,
+            "decimals": 6
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "gpt-4o-mini"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "GPT-4o Mini"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "green"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName", 
+                "options": "gpt-4o"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "GPT-4o"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "orange"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": [
+              "sum"
+            ],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "pluginVersion": "10.0.0",
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Token Split: Prompt vs Completion",
+        "type": "piechart",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A",
+            "query": "{service.name=\"secure-pr-guard\"} | select(cost.tokens.prompt)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          },
+          {
+            "queryType": "traceql", 
+            "refId": "B",
+            "query": "{service.name=\"secure-pr-guard\"} | select(cost.tokens.completion)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              }
+            },
+            "mappings": [],
+            "unit": "short",
+            "min": 0
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "cost.tokens.prompt"
+              },
+              "properties": [
+                {
+                  "id": "displayName",
+                  "value": "Prompt Tokens"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "blue"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "cost.tokens.completion"
+              },
+              "properties": [
+                {
+                  "id": "displayName", 
+                  "value": "Completion Tokens"
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "mode": "fixed",
+                    "fixedColor": "green"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": [
+              "sum"
+            ],
+            "fields": ""
+          },
+          "pieType": "pie",
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "right",
+            "showLegend": true,
+            "values": [
+              "value",
+              "percent"
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 9
+        }
+      },
+      {
+        "id": 4,
+        "title": "Cost Efficiency Trends",
+        "type": "timeseries",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A",
+            "query": "{service.name=\"secure-pr-guard\"} | select(tokens.prompt_ratio)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "barAlignment": 0,
+              "lineWidth": 1,
+              "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "vis": false
+              },
+              "insertNulls": false,
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "mean",
+              "lastNotNull"
+            ],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        }
+      },
+      {
+        "id": 5,
+        "title": "Security Issues Detected",
+        "type": "stat",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A",
+            "query": "{service.name=\"secure-pr-guard\" && operation.type=\"nitpicker\"} | select(issues.security)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "orange",
+                  "value": 3
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            },
+            "unit": "short",
+            "min": 0
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull",
+              "sum"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.0.0",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 18
+        }
+      },
+      {
+        "id": 6,
+        "title": "Workflow Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "queryType": "traceql",
+            "refId": "A",
+            "query": "{service.name=\"secure-pr-guard\" && span.name=\"pr_review.workflow\"} | select(workflow.status)",
+            "datasource": {
+              "type": "tempo",
+              "uid": "${DS_TEMPO}"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "success": {
+                    "color": "green",
+                    "index": 0,
+                    "text": "Success"
+                  },
+                  "error": {
+                    "color": "red",
+                    "index": 1,
+                    "text": "Failed"
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.0.0",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 18
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Secure PR Guard - Cost & Performance Monitoring",
+    "uid": "secure-pr-guard-cost-monitoring",
+    "version": 1,
+    "weekStart": "",
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "style": "dark",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": {
+            "type": "tempo",
+            "uid": "${DS_TEMPO}"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Operation Type",
+          "multi": true,
+          "name": "operation_type",
+          "options": [],
+          "query": "{service.name=\"secure-pr-guard\"} | select(operation.type)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": {
+            "type": "tempo",
+            "uid": "${DS_TEMPO}"
+          },
+          "definition": "",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Repository",
+          "multi": true,
+          "name": "repository",
+          "options": [],
+          "query": "{service.name=\"secure-pr-guard\"} | select(pr.repository)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "target": {
+            "limit": 100,
+            "matchAny": false,
+            "tags": [],
+            "type": "dashboard"
+          },
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "liveNow": false
+  },
+  "meta": {
+    "type": "db",
+    "canSave": true,
+    "canEdit": true,
+    "canAdmin": true,
+    "canStar": true,
+    "canDelete": true,
+    "slug": "secure-pr-guard-cost-monitoring",
+    "url": "/d/secure-pr-guard-cost-monitoring/secure-pr-guard-cost-performance-monitoring",
+    "expires": "0001-01-01T00:00:00Z",
+    "created": "2024-01-01T00:00:00Z",
+    "updated": "2024-01-01T00:00:00Z",
+    "updatedBy": "admin",
+    "createdBy": "admin",
+    "version": 1,
+    "hasAcl": false,
+    "isFolder": false,
+    "folderId": 0,
+    "folderTitle": "General",
+    "folderUrl": "",
+    "provisioned": false,
+    "provisionedExternalId": ""
+  }
+} 
