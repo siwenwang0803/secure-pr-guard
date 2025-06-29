@@ -23,7 +23,7 @@ def unsafe_sql_query(ai_generated_where_clause):
 
 # Code quality issues
 def extremely_long_function_name_that_definitely_exceeds_one_hundred_twenty_characters_and_should_trigger_length_warning():
-	print("This line uses tabs instead of spaces")  # Tab indentation
+    print("This line uses tabs instead of spaces")  # Tab indentation
     return "mixed indentation issue"
 
 class UnsafeAIHandler:
