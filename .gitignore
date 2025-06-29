@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .env
+.env
+*.pem
+github_app_private_key.pem
