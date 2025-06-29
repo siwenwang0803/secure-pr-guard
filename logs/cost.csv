@@ -49,3 +49,9 @@ timestamp,pr_url,operation,model,prompt_tokens,completion_tokens,total_tokens,co
 1751219243,https://github.com/test/repo/pull/42,test_error_failed,gpt-4o-mini,100,0,100,0.015000,500
 1751219458,https://github.com/siwenwang0803/secure-pr-guard/pull/1,nitpicker_analysis,gpt-4o-mini,376,123,499,0.074850,3369
 1751219460,https://github.com/siwenwang0803/secure-pr-guard/pull/1,patch_generation,gpt-4o-mini,444,94,538,0.080700,1981
+1751220196,https://github.com/siwenwang0803/secure-pr-guard/pull/1,nitpicker_analysis,gpt-4o-mini,376,139,515,0.077250,2778
+1751220198,https://github.com/siwenwang0803/secure-pr-guard/pull/1,patch_generation,gpt-4o-mini,455,99,554,0.083100,1889
+1751220227,https://github.com/test/repo/pull/42,test_nitpicker,gpt-4o-mini,150,50,200,0.030000,1200
+1751220227,https://github.com/test/repo/pull/42,test_error_failed,gpt-4o-mini,100,0,100,0.015000,500
+1751220341,https://github.com/siwenwang0803/secure-pr-guard/pull/1,nitpicker_analysis,gpt-4o-mini,376,132,508,0.076200,3703
+1751220342,https://github.com/siwenwang0803/secure-pr-guard/pull/1,patch_generation,gpt-4o-mini,452,91,543,0.081450,1498
