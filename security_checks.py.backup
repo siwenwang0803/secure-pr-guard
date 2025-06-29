@@ -45,6 +45,18 @@ def run_llm_security_rules(diff: str) -> List[Dict]:
         # 🆕 LLM04: Model Denial of Service / Unsafe Function Calls
         llm04_issues = check_llm04_unsafe_calls(clean_line, line_num)
         issues.extend(llm04_issues)
+
+        # 🆕 LLM05: Supply-Chain Vulnerabilities / Authorization Bypass
+        llm05_issues = check_llm05_authz_bypass(clean_line, line_num)
+        issues.extend(llm05_issues)
+        
+        # 🆕 LLM06: Sensitive Information Disclosure / Data Exfiltration  
+        llm06_issues = check_llm06_data_exfil(clean_line, line_num)
+        issues.extend(llm06_issues)
+        
+        # 🆕 LLM07: Insecure Plugin Design / DoS Vulnerabilities
+        llm07_issues = check_llm07_plugin_dos(clean_line, line_num)
+        issues.extend(llm07_issues)
         
         # Additional security patterns
         general_issues = check_general_security_patterns(clean_line, line_num)
@@ -413,6 +425,303 @@ def check_general_security_patterns(line: str, line_num: int) -> List[Dict]:
                 "type": "security",
                 "severity": "medium",
                 "comment": f"Security: {message}"
+            })
+
+def check_llm05_authz_bypass(line: str, line_num: int) -> List[Dict]:
+    """
+    🆕 LLM05: Supply-Chain Vulnerabilities / Authorization Bypass Detection
+    Detects authorization bypass attempts and supply chain vulnerabilities
+    """
+    issues = []
+    
+    # Pattern 1: Authorization bypass attempts
+    authz_bypass_patterns = [
+        r'role\s*=\s*["\']admin["\']',
+        r'role\s*=\s*["\']root["\']',
+        r'is_admin\s*=\s*True',
+        r'bypass.*auth',
+        r'skip.*permission',
+        r'ignore.*role',
+        r'override.*access',
+    ]
+    
+    for pattern in authz_bypass_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high",
+                "comment": "LLM05: Authorization bypass attempt detected - hardcoded admin privileges"
+            })
+    
+    # Pattern 2: Dangerous supply chain imports
+    dangerous_imports = [
+        r'import\s+requests\s+#.*unverified',
+        r'from\s+\w+\s+import\s+\*',  # Wildcard imports
+        r'__import__\s*\(\s*["\'][^"\']*["\'].*\)',  # Dynamic imports
+        r'importlib\.import_module\s*\(',
+        r'pip\.main\s*\(',  # Runtime pip installs
+        r'subprocess.*pip\s+install',
+    ]
+    
+    for pattern in dangerous_imports:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security", 
+                "severity": "medium",
+                "comment": "LLM05: Supply chain vulnerability - unsafe import or dynamic dependency loading"
+            })
+    
+    # Pattern 3: Privilege escalation patterns
+    privilege_escalation = [
+        r'setuid\s*\(',
+        r'setgid\s*\(',
+        r'sudo\s+',
+        r'su\s+-',
+        r'chmod\s+777',
+        r'chown\s+root',
+    ]
+    
+    for pattern in privilege_escalation:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM05: Privilege escalation detected - potential authorization bypass"
+            })
+    
+    # Pattern 4: Dependency confusion attacks
+    dependency_patterns = [
+        r'pip\s+install.*--trusted-host',
+        r'npm\s+install.*--registry',
+        r'gem\s+install.*--source',
+        r'requirements.*\.txt.*http://',  # Insecure package sources
+    ]
+    
+    for pattern in dependency_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high", 
+                "comment": "LLM05: Dependency confusion vulnerability - untrusted package source"
+            })
+    
+    return issues
+
+def check_llm06_data_exfil(line: str, line_num: int) -> List[Dict]:
+    """
+    🆕 LLM06: Sensitive Information Disclosure / Data Exfiltration Detection
+    Detects potential data leakage and unauthorized information disclosure
+    """
+    issues = []
+    
+    # Pattern 1: Data exfiltration via external requests
+    exfil_patterns = [
+        r'requests\.post\s*\(\s*["\']http[^"\']*["\'].*data',
+        r'urllib\.request.*urlopen.*data',
+        r'curl.*--data',
+        r'wget.*--post-data',
+        r'fetch\s*\(.*method.*["\']POST["\']',
+    ]
+    
+    for pattern in exfil_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high",
+                "comment": "LLM06: Potential data exfiltration - external POST request with data"
+            })
+    
+    # Pattern 2: Sensitive data exposure in logs
+    log_exposure_patterns = [
+        r'log.*password',
+        r'print.*password',
+        r'console\.log.*password',
+        r'log.*secret',
+        r'print.*token',
+        r'log.*credit.*card',
+        r'print.*ssn',
+        r'log.*api.*key',
+    ]
+    
+    for pattern in log_exposure_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high", 
+                "comment": "LLM06: Sensitive data exposure in logs - potential information disclosure"
+            })
+    
+    # Pattern 3: Database information disclosure
+    db_disclosure_patterns = [
+        r'SELECT.*\*.*FROM.*users',
+        r'SELECT.*password.*FROM',
+        r'SHOW\s+TABLES',
+        r'DESCRIBE\s+\w+',
+        r'\.execute\s*\(\s*["\']SELECT.*\*',
+        r'db\..*\.find\s*\(\s*\{\s*\}\s*\)',  # MongoDB find all
+    ]
+    
+    for pattern in db_disclosure_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "medium",
+                "comment": "LLM06: Database information disclosure - overly broad data access"
+            })
+    
+    # Pattern 4: File system information leakage
+    file_disclosure_patterns = [
+        r'open\s*\(\s*["\'][^"\']*\.log["\']',
+        r'open\s*\(\s*["\'][^"\']*\.conf["\']',
+        r'open\s*\(\s*["\']/etc/',
+        r'open\s*\(\s*["\']/var/log/',
+        r'os\.listdir\s*\(\s*["\']/["\']',
+        r'glob\.glob\s*\(\s*["\'][^"\']*\*["\']',
+    ]
+    
+    for pattern in file_disclosure_patterns:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "medium",
+                "comment": "LLM06: File system information disclosure - sensitive file access"
+            })
+    
+    # Pattern 5: PII exposure patterns
+    pii_patterns = [
+        r'email.*=.*@',
+        r'phone.*=.*\d{3}.*\d{3}.*\d{4}',
+        r'ssn.*=.*\d{3}-\d{2}-\d{4}',
+        r'credit.*card.*=.*\d{4}.*\d{4}.*\d{4}.*\d{4}',
+    ]
+    
+    for pattern in pii_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high",
+                "comment": "LLM06: PII exposure detected - personally identifiable information in code"
+            })
+    
+    return issues
+
+def check_llm07_plugin_dos(line: str, line_num: int) -> List[Dict]:
+    """
+    🆕 LLM07: Insecure Plugin Design / DoS Vulnerabilities Detection
+    Detects plugin security issues and denial of service vulnerabilities
+    """
+    issues = []
+    
+    # Pattern 1: Resource exhaustion attacks
+    resource_exhaustion = [
+        r'while\s+True\s*:.*(?!break)',  # Infinite loops without break
+        r'for\s+\w+\s+in\s+range\s*\(\s*(?:\d{7,}|\w+\s*\*\s*\w+)\s*\)',  # Very large loops
+        r'time\.sleep\s*\(\s*(?:\d{4,}|\w+\s*\*\s*\w+)\s*\)',  # Long sleeps
+        r'threading\.Thread.*target.*while',  # Threading with potential infinite loops
+        r'multiprocessing\.Process.*while',
+    ]
+    
+    for pattern in resource_exhaustion:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high",
+                "comment": "LLM07: Resource exhaustion vulnerability - potential DoS via CPU/time consumption"
+            })
+    
+    # Pattern 2: Memory exhaustion attacks
+    memory_exhaustion = [
+        r'.*\[\s*\]\s*\*\s*(?:\d{6,}|\w+\s*\*\s*\w+)',  # Large list creation
+        r'.*\s*\*\s*(?:\d{6,}|\w+\s*\*\s*\w+).*',  # Large string multiplication
+        r'range\s*\(\s*(?:\d{7,}|\w+\s*\*\s*\w+)\s*\)',  # Large ranges
+        r'np\.zeros\s*\(\s*(?:\d{6,}|\(\s*\d+,\s*\d+\s*\))\s*\)',  # Large numpy arrays
+    ]
+    
+    for pattern in memory_exhaustion:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "medium",
+                "comment": "LLM07: Memory exhaustion vulnerability - potential DoS via memory consumption"
+            })
+    
+    # Pattern 3: Insecure plugin loading
+    insecure_plugin_patterns = [
+        r'importlib\.import_module\s*\(\s*.*user.*\)',
+        r'__import__\s*\(\s*.*input.*\)',
+        r'exec\s*\(\s*.*plugin.*\)',
+        r'eval\s*\(\s*.*plugin.*\)',
+        r'compile\s*\(\s*.*user.*\)',
+        r'types\.ModuleType\s*\(',
+    ]
+    
+    for pattern in insecure_plugin_patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM07: Insecure plugin loading - dynamic code execution with user input"
+            })
+    
+    # Pattern 4: Rate limiting bypasses
+    rate_limit_bypass = [
+        r'time\.sleep\s*\(\s*0\s*\)',  # Zero sleep (rate limit bypass attempt)
+        r'requests\.get.*timeout\s*=\s*(?:\d{3,}|None)',  # Very high timeouts
+        r'concurrent\.futures.*max_workers\s*=\s*(?:\d{3,}|\w+\s*\*\s*\w+)',  # Excessive workers
+        r'asyncio\.gather\s*\(\s*\*.*\[\s*.*\s*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',  # Mass async requests
+    ]
+    
+    for pattern in rate_limit_bypass:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "medium",
+                "comment": "LLM07: Rate limiting bypass attempt - potential DoS via request flooding"
+            })
+    
+    # Pattern 5: Recursive vulnerabilities
+    recursive_patterns = [
+        r'def\s+\w+.*:.*\1\s*\(',  # Simple recursion detection
+        r'recursion.*limit.*None',
+        r'sys\.setrecursionlimit\s*\(\s*(?:\d{5,}|\w+\s*\*\s*\w+)\s*\)',  # High recursion limits
+    ]
+    
+    for pattern in recursive_patterns:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "medium",
+                "comment": "LLM07: Recursive vulnerability - potential stack overflow DoS"
+            })
+    
+    # Pattern 6: Network flooding
+    network_flooding = [
+        r'socket\.socket.*connect.*for.*in.*range',
+        r'requests\.(?:get|post).*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',
+        r'urllib.*urlopen.*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',
+    ]
+    
+    for pattern in network_flooding:
+        if re.search(pattern, line):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "high",
+                "comment": "LLM07: Network flooding detected - potential DoS via connection exhaustion"
             })
     
     return issues
