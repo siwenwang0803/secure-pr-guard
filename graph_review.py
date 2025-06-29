@@ -23,6 +23,7 @@ try:
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.trace import Status, StatusCode
     from dotenv import load_dotenv
     
     load_dotenv()
@@ -32,19 +33,36 @@ try:
         resource = Resource(attributes={
             "service.name": "secure-pr-guard",
             "service.version": "v2.0",
-            "environment": "production"
+            "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+            "service.namespace": "pr-automation"
         })
         
         provider = TracerProvider(resource=resource)
         
+        # Grafana Cloud uses Basic Auth
+        import base64
+        username = os.getenv("OTLP_USERNAME", "1299868")  # Updated to match your actual username
+        password = os.getenv("OTLP_API_KEY")
+        credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+        
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.getenv("OTLP_ENDPOINT") + "/v1/traces",
-            headers=(("Authorization", f"Bearer {os.getenv('OTLP_API_KEY')}"),),
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "X-Scope-OrgID": username,
+            }
         )
         
-        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        # Store processor reference for later flush
+        span_processor = BatchSpanProcessor(otlp_exporter)
+        provider.add_span_processor(span_processor)
         trace.set_tracer_provider(provider)
         tracer = trace.get_tracer("secure-pr-guard")
+        
+        # Store processor for cleanup
+        global _span_processor
+        _span_processor = span_processor
+        
         print("📊 Observability: Connected to Grafana Cloud")
     else:
         tracer = None
@@ -68,34 +86,75 @@ class ReviewState(TypedDict):
     total_tokens: int
     error: str
 
+def extract_pr_metadata(pr_url: str) -> dict:
+    """Extract standardized PR metadata from GitHub URL"""
+    metadata = {}
+    if pr_url and pr_url.startswith("https://github.com/"):
+        try:
+            parts = pr_url.rstrip('/').split('/')
+            metadata = {
+                "pr.url": pr_url,
+                "pr.repository": f"{parts[3]}/{parts[4]}",
+                "pr.owner": parts[3],
+                "pr.repo": parts[4],
+                "pr.number": int(parts[6])
+            }
+        except (IndexError, ValueError):
+            metadata = {"pr.url": pr_url}
+    return metadata
+
 def fetch_diff_node(state: ReviewState) -> ReviewState:
     """
     Node 1: Fetch PR diff from GitHub
     """
     try:
-        print(f"🔍 Fetching diff from: {state['pr_url']}")
-        diff = fetch_pr_diff(state['pr_url'])
-        
-        # Preview diff length for debugging
-        print(f"📄 Diff length: {len(diff)} characters")
-        
-        return {
-            "pr_url": state["pr_url"],
-            "diff_content": diff,
-            "nitpicker_result": {},
-            "nitpicker_cost": {},
-            "architect_result": {},
-            "patch_content": "",
-            "patch_cost": {},
-            "patch_pr_url": "",
-            "comment_posted": False,
-            "total_cost": 0.0,
-            "total_tokens": 0,
-            "error": ""
-        }
+        with tracer.start_as_current_span("fetch.diff") if tracer else nullcontext() as span:
+            print(f"🔍 Fetching diff from: {state['pr_url']}")
+            
+            if span:
+                span.set_attributes({
+                    "operation.type": "fetch",
+                    "operation.name": "fetch_pr_diff",
+                    **extract_pr_metadata(state['pr_url'])
+                })
+            
+            start_time = time.time()
+            diff = fetch_pr_diff(state['pr_url'])
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Preview diff length for debugging
+            print(f"📄 Diff length: {len(diff)} characters")
+            
+            if span:
+                span.set_attributes({
+                    "diff.size_chars": len(diff),
+                    "latency.ms": latency_ms
+                })
+            
+            return {
+                "pr_url": state["pr_url"],
+                "diff_content": diff,
+                "nitpicker_result": {},
+                "nitpicker_cost": {},
+                "architect_result": {},
+                "patch_content": "",
+                "patch_cost": {},
+                "patch_pr_url": "",
+                "comment_posted": False,
+                "total_cost": 0.0,
+                "total_tokens": 0,
+                "error": ""
+            }
     except Exception as e:
         error_msg = f"Failed to fetch diff: {str(e)}"
         print(f"❌ {error_msg}")
+        
+        if tracer:
+            span = trace.get_current_span()
+            if span:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, error_msg))
+        
         return {
             "pr_url": state["pr_url"],
             "diff_content": "",
@@ -122,28 +181,59 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
     try:
         print("🤖 Running AI code analysis + OWASP security checks...")
         
-        # Add observability span - 修复后的版本
-        with tracer.start_as_current_span("nitpicker") if tracer else nullcontext() as span:
+        # Add observability span with standardized attributes
+        with tracer.start_as_current_span("nitpicker.analyze") if tracer else nullcontext() as span:
             start_time = time.time()
+            
+            # Set initial attributes BEFORE calling nitpick
+            if span:
+                span.set_attributes({
+                    "operation.type": "nitpicker",
+                    "operation.name": "analyze_code_security",
+                    **extract_pr_metadata(state["pr_url"])
+                })
+            
             result, cost_info = nitpick(state["diff_content"], state["pr_url"])
             latency_ms = int((time.time() - start_time) * 1000)
             
-            # Record metrics in span
-            if span:
-                span.set_attribute("latency_ms", latency_ms)
-                span.set_attribute("tokens", cost_info.get("total_tokens", 0))
-                span.set_attribute("cost_usd", cost_info.get("cost_usd", 0.0))
-                span.set_attribute("prompt_tokens", cost_info.get("prompt_tokens", 0))
-                span.set_attribute("completion_tokens", cost_info.get("completion_tokens", 0))
-                span.set_attribute("model", cost_info.get("model", "gpt-4o-mini"))
-                span.set_attribute("issues_found", len(result.get("issues", [])))
-            
-            # Show summary
+            # Extract analysis summary
             issues_count = len(result.get("issues", []))
             analysis_summary = result.get("analysis_summary", {})
             ai_detected = analysis_summary.get("ai_detected", 0)
             rule_detected = analysis_summary.get("rule_detected", 0)
             
+            # Update span with ALL attributes including cost
+            if span:
+                span.set_attributes({
+                    # Cost metrics (for cost governance) - THESE ARE THE KEY ONES
+                    "cost.usd": cost_info.get("cost_usd", 0.0),
+                    "cost.model": cost_info.get("model", "gpt-4o-mini"),
+                    "cost.tokens.prompt": cost_info.get("prompt_tokens", 0),
+                    "cost.tokens.completion": cost_info.get("completion_tokens", 0),
+                    "cost.tokens.total": cost_info.get("total_tokens", 0),
+                    
+                    # Performance metrics (for SLO)
+                    "latency.ms": latency_ms,
+                    "latency.api_ms": cost_info.get("latency_ms", 0),
+                    
+                    # Result metrics
+                    "issues.found": issues_count,
+                    "issues.ai_detected": ai_detected,
+                    "issues.rule_detected": rule_detected,
+                    "issues.security": len([i for i in result.get("issues", []) 
+                                          if i.get("type") == "security"]),
+                    
+                    # Efficiency metrics
+                    "tokens.prompt_ratio": round(
+                        cost_info.get("prompt_tokens", 0) / cost_info.get("total_tokens", 1), 3
+                    ) if cost_info.get("total_tokens", 0) > 0 else 0
+                })
+                
+                # DEBUG: Verify attributes were set
+                print(f"🔍 DEBUG: Set cost.usd = {cost_info.get('cost_usd', 0.0)}")
+                print(f"🔍 DEBUG: Set cost.tokens.total = {cost_info.get('total_tokens', 0)}")
+            
+            # Show summary
             print(f"📋 Analysis complete:")
             print(f"   - AI detected: {ai_detected} issues")
             print(f"   - Security rules: {rule_detected} issues") 
@@ -166,17 +256,25 @@ def nitpicker_node(state: ReviewState) -> ReviewState:
     except Exception as e:
         error_msg = f"Nitpicker analysis failed: {str(e)}"
         print(f"❌ {error_msg}")
+        
         if tracer:
             span = trace.get_current_span()
             if span:
                 span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR))
+                span.set_status(Status(StatusCode.ERROR, error_msg))
+        
         return {
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": {},
+            "nitpicker_cost": {},
             "architect_result": {},
+            "patch_content": "",
+            "patch_cost": {},
+            "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": state.get("total_cost", 0.0),
+            "total_tokens": state.get("total_tokens", 0),
             "error": error_msg
         }
 
@@ -189,42 +287,82 @@ def architect_node(state: ReviewState) -> ReviewState:
     
     try:
         print("🏗️ Running architectural security analysis...")
-        result = architect(state["nitpicker_result"])
         
-        # Show security summary
-        summary = result.get("summary", {})
-        risk_level = summary.get("risk_level", "unknown")
-        security_issues = summary.get("security_issues", 0)
+        with tracer.start_as_current_span("architect.analyze") if tracer else nullcontext() as span:
+            start_time = time.time()
+            result = architect(state["nitpicker_result"])
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            # Show security summary
+            summary = result.get("summary", {})
+            risk_level = summary.get("risk_level", "unknown")
+            security_issues = summary.get("security_issues", 0)
+            
+            if span:
+                span.set_attributes({
+                    # Operation classification
+                    "operation.type": "architect",
+                    "operation.name": "prioritize_security_issues",
+                    
+                    # Performance metrics
+                    "latency.ms": latency_ms,
+                    
+                    # Risk assessment
+                    "risk.level": risk_level,
+                    "risk.score": {"critical": 10, "high": 7, "medium": 4, "low": 1}
+                                 .get(risk_level, 0),
+                    
+                    # Issue categorization
+                    "issues.security": security_issues,
+                    "issues.critical": len([i for i in result.get("issues", [])
+                                          if i.get("severity") == "critical"]),
+                    "issues.high": len([i for i in result.get("issues", [])
+                                      if i.get("severity") == "high"]),
+                    
+                    # Business context
+                    **extract_pr_metadata(state["pr_url"])
+                })
+            
+            print(f"🔍 Architecture analysis complete:")
+            print(f"   - Risk level: {risk_level.upper()}")
+            print(f"   - Security issues: {security_issues}")
+            
+            return {
+                "pr_url": state["pr_url"],
+                "diff_content": state["diff_content"],
+                "nitpicker_result": state["nitpicker_result"],
+                "nitpicker_cost": state["nitpicker_cost"],
+                "architect_result": result,
+                "patch_content": "",
+                "patch_cost": {},
+                "patch_pr_url": "",
+                "comment_posted": False,
+                "total_cost": state["total_cost"],
+                "total_tokens": state["total_tokens"],
+                "error": ""
+            }
+    except Exception as e:
+        error_msg = f"Architect analysis failed: {str(e)}"
+        print(f"❌ {error_msg}")
         
-        print(f"🔍 Architecture analysis complete:")
-        print(f"   - Risk level: {risk_level.upper()}")
-        print(f"   - Security issues: {security_issues}")
+        if tracer:
+            span = trace.get_current_span()
+            if span:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, error_msg))
         
         return {
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": state["nitpicker_result"],
             "nitpicker_cost": state["nitpicker_cost"],
-            "architect_result": result,
+            "architect_result": {},
             "patch_content": "",
             "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
             "total_cost": state["total_cost"],
             "total_tokens": state["total_tokens"],
-            "error": ""
-        }
-    except Exception as e:
-        error_msg = f"Architect analysis failed: {str(e)}"
-        print(f"❌ {error_msg}")
-        return {
-            "pr_url": state["pr_url"],
-            "diff_content": state["diff_content"],
-            "nitpicker_result": state["nitpicker_result"],
-            "architect_result": {},
-            "patch_content": "",
-            "patch_pr_url": "",
-            "comment_posted": False,
             "error": error_msg
         }
 
@@ -238,21 +376,54 @@ def patch_node(state: ReviewState) -> ReviewState:
     try:
         print("🛠️ Generating patches for safe formatting issues...")
         
-        # Add observability span - 修复后的版本
-        with tracer.start_as_current_span("patch_generation") if tracer else nullcontext() as span:
+        with tracer.start_as_current_span("patch.generate") if tracer else nullcontext() as span:
             # Generate patch for low-risk issues
             start_time = time.time()
             issues = state["architect_result"].get("issues", [])
+            
+            # Count patchable issues
+            safe_issues = [i for i in issues if i.get("type") in {"indentation", "length", "style"}]
+            
+            # Set initial attributes
+            if span:
+                span.set_attributes({
+                    "operation.type": "patch",
+                    "operation.name": "generate_safe_patches",
+                    "patch.issues_total": len(issues),
+                    "patch.issues_safe": len(safe_issues),
+                    **extract_pr_metadata(state["pr_url"])
+                })
+            
             patch_content, patch_cost_info = build_patch(state["diff_content"], issues, state["pr_url"])
             latency_ms = int((time.time() - start_time) * 1000)
             
-            # Record metrics in span
+            # Record ALL metrics including cost
             if span:
-                span.set_attribute("latency_ms", latency_ms)
-                span.set_attribute("tokens", patch_cost_info.get("total_tokens", 0))
-                span.set_attribute("cost_usd", patch_cost_info.get("cost_usd", 0.0))
-                span.set_attribute("patch_generated", bool(patch_content))
-                span.set_attribute("safe_issues_count", len([i for i in issues if i.get("type") in {"indentation", "length", "style"}]))
+                span.set_attributes({
+                    # Cost metrics - THESE ARE THE KEY ONES
+                    "cost.usd": patch_cost_info.get("cost_usd", 0.0),
+                    "cost.model": patch_cost_info.get("model", "gpt-4o-mini"),
+                    "cost.tokens.prompt": patch_cost_info.get("prompt_tokens", 0),
+                    "cost.tokens.completion": patch_cost_info.get("completion_tokens", 0),
+                    "cost.tokens.total": patch_cost_info.get("total_tokens", 0),
+                    
+                    # Performance metrics
+                    "latency.ms": latency_ms,
+                    "latency.api_ms": patch_cost_info.get("latency_ms", 0),
+                    
+                    # Patch metrics
+                    "patch.generated": bool(patch_content),
+                    "patch.issues_patched": len(safe_issues) if patch_content else 0,
+                    
+                    # Efficiency metrics
+                    "tokens.prompt_ratio": round(
+                        patch_cost_info.get("prompt_tokens", 0) / patch_cost_info.get("total_tokens", 1), 3
+                    ) if patch_cost_info.get("total_tokens", 0) > 0 else 0
+                })
+                
+                # DEBUG: Verify attributes were set
+                print(f"🔍 DEBUG: Set patch cost.usd = {patch_cost_info.get('cost_usd', 0.0)}")
+                print(f"🔍 DEBUG: Set patch cost.tokens.total = {patch_cost_info.get('total_tokens', 0)}")
             
             if not patch_content:
                 print("⏭️ No safe issues to patch - skipping patch creation")
@@ -290,8 +461,13 @@ def patch_node(state: ReviewState) -> ReviewState:
             
             if patch_pr_url:
                 print(f"✅ Patch PR created successfully: {patch_pr_url}")
+                if span:
+                    span.set_attribute("patch.pr_created", True)
+                    span.set_attribute("patch.pr_url", patch_pr_url)
             else:
                 print("⚠️ Patch PR creation failed, but analysis completed")
+                if span:
+                    span.set_attribute("patch.pr_created", False)
             
             # Calculate total cost
             total_cost = state["total_cost"] + patch_cost_info.get("cost_usd", 0.0)
@@ -315,19 +491,25 @@ def patch_node(state: ReviewState) -> ReviewState:
     except Exception as e:
         error_msg = f"Patch generation failed: {str(e)}"
         print(f"❌ {error_msg}")
+        
         if tracer:
             span = trace.get_current_span()
             if span:
                 span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR))
+                span.set_status(Status(StatusCode.ERROR, error_msg))
+        
         return {
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
             "nitpicker_result": state["nitpicker_result"],
+            "nitpicker_cost": state["nitpicker_cost"],
             "architect_result": state["architect_result"],
             "patch_content": "",
+            "patch_cost": {},
             "patch_pr_url": "",
             "comment_posted": False,
+            "total_cost": state["total_cost"],
+            "total_tokens": state["total_tokens"],
             "error": error_msg
         }
 
@@ -341,37 +523,62 @@ def comment_node(state: ReviewState) -> ReviewState:
     try:
         print("💬 Formatting and posting GitHub comment...")
         
-        # Format the comment
-        comment_body = format_review_comment(
-            state["architect_result"], 
-            state["pr_url"]
-        )
-        
-        # Post to GitHub
-        success = post_comment(state["pr_url"], comment_body)
-        
-        if success:
-            print("✅ Comment posted successfully!")
-        else:
-            print("⚠️ Comment posting failed, but analysis completed")
-        
-        return {
-            "pr_url": state["pr_url"],
-            "diff_content": state["diff_content"],
-            "nitpicker_result": state["nitpicker_result"],
-            "nitpicker_cost": state["nitpicker_cost"],
-            "architect_result": state["architect_result"],
-            "patch_content": state["patch_content"],
-            "patch_cost": state["patch_cost"],
-            "patch_pr_url": state["patch_pr_url"],
-            "comment_posted": success,
-            "total_cost": state["total_cost"],
-            "total_tokens": state["total_tokens"],
-            "error": "" if success else "Comment posting failed"
-        }
+        with tracer.start_as_current_span("comment.post") if tracer else nullcontext() as span:
+            start_time = time.time()
+            
+            if span:
+                span.set_attributes({
+                    "operation.type": "comment",
+                    "operation.name": "post_pr_comment",
+                    **extract_pr_metadata(state["pr_url"])
+                })
+            
+            # Format the comment
+            comment_body = format_review_comment(
+                state["architect_result"], 
+                state["pr_url"]
+            )
+            
+            # Post to GitHub
+            success = post_comment(state["pr_url"], comment_body)
+            latency_ms = int((time.time() - start_time) * 1000)
+            
+            if span:
+                span.set_attributes({
+                    "comment.posted": success,
+                    "comment.length": len(comment_body),
+                    "latency.ms": latency_ms
+                })
+            
+            if success:
+                print("✅ Comment posted successfully!")
+            else:
+                print("⚠️ Comment posting failed, but analysis completed")
+            
+            return {
+                "pr_url": state["pr_url"],
+                "diff_content": state["diff_content"],
+                "nitpicker_result": state["nitpicker_result"],
+                "nitpicker_cost": state["nitpicker_cost"],
+                "architect_result": state["architect_result"],
+                "patch_content": state["patch_content"],
+                "patch_cost": state["patch_cost"],
+                "patch_pr_url": state["patch_pr_url"],
+                "comment_posted": success,
+                "total_cost": state["total_cost"],
+                "total_tokens": state["total_tokens"],
+                "error": "" if success else "Comment posting failed"
+            }
     except Exception as e:
         error_msg = f"Comment posting failed: {str(e)}"
         print(f"❌ {error_msg}")
+        
+        if tracer:
+            span = trace.get_current_span()
+            if span:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, error_msg))
+        
         return {
             "pr_url": state["pr_url"],
             "diff_content": state["diff_content"],
@@ -494,33 +701,62 @@ def main():
     
     # Execute workflow with observability
     try:
-        with tracer.start_as_current_span("pr_review") if tracer else nullcontext() as span:
+        with tracer.start_as_current_span("pr_review.workflow") if tracer else nullcontext() as span:
             if span:
-                span.set_attribute("pr_url", pr_url)
-                # Extract repo info
-                parts = pr_url.rstrip('/').split('/')
-                span.set_attribute("repo", f"{parts[3]}/{parts[4]}")
-                span.set_attribute("pr_number", parts[6])
+                # Extract PR metadata
+                pr_metadata = extract_pr_metadata(pr_url)
+                span.set_attributes({
+                    # Service identification
+                    "workflow.name": "secure_pr_guard",
+                    "workflow.version": "2.0",
+                    
+                    # PR context
+                    **pr_metadata,
+                    
+                    # Workflow metadata
+                    "workflow.start_time": datetime.now(timezone.utc).isoformat()
+                })
             
             final_state = workflow.invoke(initial_state)
             
-            # Record final metrics
+            # Record final summary metrics
             if span:
                 summary = final_state["architect_result"].get("summary", {})
-                span.set_attribute("total_issues", summary.get("total_issues", 0))
-                span.set_attribute("security_issues", summary.get("security_issues", 0))
-                span.set_attribute("risk_level", summary.get("risk_level", "unknown"))
-                span.set_attribute("total_cost_usd", final_state.get("total_cost", 0.0))
-                span.set_attribute("total_tokens", final_state.get("total_tokens", 0))
-                span.set_attribute("patch_created", bool(final_state.get("patch_pr_url")))
-                span.set_attribute("comment_posted", final_state.get("comment_posted", False))
+                issues = final_state["architect_result"].get("issues", [])
                 
-                # Calculate total latency
-                total_latency = (
-                    final_state.get("nitpicker_cost", {}).get("latency_ms", 0) +
-                    final_state.get("patch_cost", {}).get("latency_ms", 0)
-                )
-                span.set_attribute("total_latency_ms", total_latency)
+                span.set_attributes({
+                    # Workflow results
+                    "workflow.status": "success" if not final_state.get("error") else "error",
+                    "workflow.error": final_state.get("error", ""),
+                    
+                    # Issue summary
+                    "issues.total": summary.get("total_issues", 0),
+                    "issues.security": summary.get("security_issues", 0),
+                    "issues.critical": len([i for i in issues if i.get("severity") == "critical"]),
+                    "issues.high": len([i for i in issues if i.get("severity") == "high"]),
+                    "issues.medium": len([i for i in issues if i.get("severity") == "medium"]),
+                    "issues.low": len([i for i in issues if i.get("severity") == "low"]),
+                    
+                    # Risk assessment
+                    "risk.level": summary.get("risk_level", "unknown"),
+                    "risk.score": {"critical": 10, "high": 7, "medium": 4, "low": 1}
+                                 .get(summary.get("risk_level", "low"), 0),
+                    
+                    # Cost summary
+                    "cost.total_usd": final_state.get("total_cost", 0.0),
+                    "cost.tokens.total": final_state.get("total_tokens", 0),
+                    
+                    # Performance summary
+                    "latency.total_ms": (
+                        final_state.get("nitpicker_cost", {}).get("latency_ms", 0) +
+                        final_state.get("patch_cost", {}).get("latency_ms", 0)
+                    ),
+                    
+                    # Workflow outcomes
+                    "patch.created": bool(final_state.get("patch_pr_url")),
+                    "patch.pr_url": final_state.get("patch_pr_url", ""),
+                    "comment.posted": final_state.get("comment_posted", False)
+                })
         
             print("\n" + "=" * 70)
             print("📊 WORKFLOW RESULTS")
@@ -607,8 +843,30 @@ def main():
             span = trace.get_current_span()
             if span:
                 span.record_exception(e)
-                span.set_status(trace.Status(trace.StatusCode.ERROR))
+                span.set_status(Status(StatusCode.ERROR, str(e)))
         sys.exit(1)
+    
+    finally:
+        # Critical: Force flush all spans to Grafana Cloud
+        if tracer:
+            try:
+                print("🔭 Flushing telemetry data to Grafana Cloud...")
+                # Use the stored processor reference
+                if '_span_processor' in globals():
+                    _span_processor.force_flush(timeout_millis=5000)
+                    print("✅ Telemetry data sent successfully")
+                else:
+                    # Fallback method
+                    provider = trace.get_tracer_provider()
+                    if hasattr(provider, 'force_flush'):
+                        provider.force_flush(timeout_millis=5000)
+                        print("✅ Telemetry data sent (fallback)")
+            except Exception as flush_error:
+                print(f"⚠️ Telemetry flush failed: {flush_error}")
+                # Give time for automatic flush
+                import time
+                time.sleep(2)
+                print("✅ Fallback: Waited for automatic flush")
 
 if __name__ == "__main__":
     main()
