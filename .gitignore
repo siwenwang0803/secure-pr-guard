@@ -78,3 +78,8 @@ logs/*.log
 *.log
 __pycache__/
 *.pyc
+*.html
+.coverage
+__pycache__/
+*.pyc
+*.log
