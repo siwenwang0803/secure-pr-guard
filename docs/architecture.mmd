@@ -1,0 +1,36 @@
+graph TD
+    %% GitHub Integration
+    GH["🔗 GitHub PR"] --> |diff fetch| FD["🔍 Fetch Diff Agent"]
+    
+    %% Multi-Agent Pipeline
+    FD --> |raw diff| NP["🤖 Nitpicker Agent<br/>AI Analysis + OWASP"]
+    NP --> |security issues| AR["🏗️ Architect Agent<br/>Risk Assessment"]
+    AR --> |prioritized issues| PA["🛠️ Patch Agent<br/>Auto-Fix Generation"]
+    PA --> |draft PR| CM["💬 Comment Agent<br/>GitHub Integration"]
+    
+    %% Output Channels
+    CM --> |review comment| GH
+    PA --> |patch PR| PR["📝 Draft Pull Request"]
+    
+    %% Observability Layer
+    NP -.-> |traces| OT["📊 OpenTelemetry<br/>Instrumentation"]
+    PA -.-> |metrics| OT
+    CM -.-> |spans| OT
+    
+    %% Monitoring Stack
+    OT --> |OTLP HTTP| GC["☁️ Grafana Cloud<br/>Tempo Traces"]
+    GC --> |TraceQL| GB["📈 Grafana Dashboard<br/>Metrics Analytics"]
+    
+    %% Cost Tracking
+    OT -.-> |cost tokens| CSV["📄 logs/cost.csv<br/>Local Analytics"]
+    
+    %% Styling
+    classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef github fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+    classDef observability fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef storage fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px;
+    
+    class FD,NP,AR,PA,CM agent;
+    class GH,PR github;
+    class OT,GC,GB observability;
+    class CSV storage; 

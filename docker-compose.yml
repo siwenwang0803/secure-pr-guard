@@ -1,0 +1,169 @@
+
+services:
+  # ============================================================================
+  # Secure PR Guard Main Application
+  # ============================================================================
+  secure-pr-guard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: secure-pr-guard-app
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+      - OTEL_SERVICE_NAME=secure-pr-guard
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=secure-pr-guard,service.version=1.0.0
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"  # Main application
+      - "8080:8080"  # Monitoring dashboard
+    volumes:
+      - ./logs:/app/logs
+      - ./monitoring/config:/app/monitoring/config
+      - ./docs:/app/docs
+    networks:
+      - pr-guard-network
+    depends_on:
+      - redis
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # Monitoring Dashboard (Standalone)
+  # ============================================================================
+  monitoring-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: pr-guard-monitor
+    restart: unless-stopped
+    command: ["python", "monitoring/pr_guard_monitor.py", "--timeframe", "24h", "--auto-refresh"]
+    environment:
+      - ENVIRONMENT=development
+      - DASHBOARD_PORT=8080
+    env_file:
+      - .env
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./monitoring/config:/app/monitoring/config:ro
+    networks:
+      - pr-guard-network
+    depends_on:
+      - secure-pr-guard
+
+  # ============================================================================
+  # Redis for Caching and Session Management
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: pr-guard-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-pr-guard-redis}
+    volumes:
+      - redis-data:/data
+    networks:
+      - pr-guard-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # ============================================================================
+  # Prometheus for Metrics Collection
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pr-guard-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - pr-guard-network
+
+  # ============================================================================
+  # Grafana for Advanced Dashboards
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pr-guard-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-pr-guard-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - pr-guard-network
+    depends_on:
+      - prometheus
+
+  # ============================================================================
+  # Nginx Reverse Proxy
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: pr-guard-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docs:/usr/share/nginx/html/docs:ro
+    networks:
+      - pr-guard-network
+    depends_on:
+      - secure-pr-guard
+      - monitoring-dashboard
+      - grafana
+
+# ============================================================================
+# Volumes for Data Persistence
+# ============================================================================
+volumes:
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+networks:
+  pr-guard-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

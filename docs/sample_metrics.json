@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-06-26T08:06:38.853268",
+  "metrics": {
+    "secure_pr_guard_latency_nitpicker_ms": 6844,
+    "secure_pr_guard_latency_patch_ms": 7957,
+    "secure_pr_guard_tokens_nitpicker": 873,
+    "secure_pr_guard_tokens_patch": 1427,
+    "secure_pr_guard_cost_nitpicker_usd": 0.13095,
+    "secure_pr_guard_cost_patch_usd": 0.21405,
+    "secure_pr_guard_total_cost_usd": 0.345,
+    "secure_pr_guard_total_tokens": 2300,
+    "secure_pr_guard_total_latency_ms": 14801
+  },
+  "summary": {
+    "avg_cost_per_review": 0.31,
+    "avg_latency_seconds": 14.8,
+    "token_efficiency_prompt_pct": 70.3,
+    "success_rate_pct": 95
+  }
+}

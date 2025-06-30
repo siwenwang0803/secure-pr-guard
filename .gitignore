@@ -1,0 +1,75 @@
+__pycache__/
+*.pyc
+.env
+.env
+*.pem
+github_app_private_key.pem
+# Environment files
+.env
+*.backup
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Docker
+.dockerignore
+
+# Logs
+logs/*.csv
+logs/*.json
+backups/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large files
+*.html
+*.pdf  
+*.png
+*.jpg
+*.log
+logs/*.log
+logs/deployment.log
+pr_guard_monitor_*.*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Backup files
+*.backup
+*.bak
+
+# Generated files
+*.html
+*.pdf
+*.png
+logs/*.log
+*.html

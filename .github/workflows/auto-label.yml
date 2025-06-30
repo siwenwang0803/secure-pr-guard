@@ -1,0 +1,41 @@
+name: Auto Label PR (GitHub App)
+
+on:
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:        # 手动触发，用来测试 JWT 是否生效
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+
+    # 必须有 pr / issues 写权限
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    # 1. 拉代码（可选）
+    - uses: actions/checkout@v4
+
+    # 2. 装 Python 3.11
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    # 3. 安装依赖（PyJWT 才会生成 jwt 模块）
+    - name: Install deps
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyJWT[crypto] requests
+
+    # 4. 运行脚本
+    - name: Auto-label with GitHub App
+      env:
+        APP_ID:               ${{ secrets.APP_ID }}                # 纯数字
+        INSTALLATION_ID:      ${{ secrets.APP_INSTALLATION_ID }}   # 纯数字
+        PRIVATE_KEY_PEM:      ${{ secrets.APP_PRIVATE_KEY }}       # 整个 PEM，多行 OK
+      run: |
+        python .github/scripts/auto_label.py
+

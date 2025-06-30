@@ -1,0 +1,43 @@
+# OWASP LLM Top 10 Security Rules for AI Code Review
+# Reference: https://owasp.org/www-project-top-10-for-large-language-model-applications/
+
+version: "1.0"
+last_updated: "2025-06-25"
+
+rules:
+  LLM01:
+    title: "Prompt Injection"
+    description: "Manipulating LLMs via crafted inputs to cause unintended actions"
+    severity: "high"
+    category: "input_validation"
+    patterns: []
+    # TODO: Implement detection patterns for prompt injection vulnerabilities
+
+  LLM02:
+    title: "Insecure Output Handling"
+    description: "Insufficient validation of LLM outputs before downstream processing"
+    severity: "high" 
+    category: "output_validation"
+    patterns: []
+    # TODO: Implement detection patterns for insecure output handling
+
+  # Placeholder for future rules
+  LLM03:
+    title: "Training Data Poisoning"
+    description: "TBD - To be implemented in next iteration"
+    severity: "high"
+    category: "data_integrity"
+    patterns: []
+    
+  LLM04:
+    title: "Model Denial of Service"
+    description: "TBD - To be implemented in next iteration"
+    severity: "medium"
+    category: "availability"
+    patterns: []
+
+# Configuration for AI review agent
+agent_config:
+  primary_focus: ["LLM01", "LLM02"]
+  scan_depth: "basic"
+  reporting_format: "json"

@@ -1,0 +1,177 @@
+# Prometheus configuration for Secure PR Guard monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'secure-pr-guard'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts/*.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Secure PR Guard application metrics
+  - job_name: 'secure-pr-guard'
+    static_configs:
+      - targets: ['secure-pr-guard:8000']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # OpenTelemetry metrics from the application
+  - job_name: 'otel-metrics'
+    static_configs:
+      - targets: ['secure-pr-guard:8000']
+    scrape_interval: 15s
+    metrics_path: '/otel/metrics'
+    scrape_timeout: 10s
+
+  # Budget Guard specific metrics
+  - job_name: 'budget-guard'
+    static_configs:
+      - targets: ['secure-pr-guard:8000']
+    scrape_interval: 30s
+    metrics_path: '/budget/metrics'
+    scrape_timeout: 10s
+
+  # Monitoring dashboard metrics
+  - job_name: 'pr-guard-monitor'
+    static_configs:
+      - targets: ['monitoring-dashboard:8080']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # System metrics (if node_exporter is available)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Redis metrics
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+# Custom recording rules for Secure PR Guard
+recording_rules:
+  - name: secure_pr_guard_rules
+    rules:
+      # Cost efficiency rate
+      - record: secure_pr_guard:cost_efficiency_rate
+        expr: rate(secure_pr_guard_total_cost[5m]) / rate(secure_pr_guard_total_tokens[5m])
+      
+      # Average latency
+      - record: secure_pr_guard:avg_latency_seconds
+        expr: rate(secure_pr_guard_total_latency_seconds[5m]) / rate(secure_pr_guard_operations_total[5m])
+      
+      # Error rate
+      - record: secure_pr_guard:error_rate
+        expr: rate(secure_pr_guard_errors_total[5m]) / rate(secure_pr_guard_operations_total[5m])
+      
+      # Budget utilization
+      - record: secure_pr_guard:budget_utilization_hourly
+        expr: secure_pr_guard_hourly_cost / secure_pr_guard_hourly_budget_limit
+      
+      - record: secure_pr_guard:budget_utilization_daily
+        expr: secure_pr_guard_daily_cost / secure_pr_guard_daily_budget_limit
+
+# Alert rules for budget and performance monitoring
+alerting_rules:
+  - name: budget_alerts
+    rules:
+      # Budget limit alerts
+      - alert: HourlyBudgetHigh
+        expr: secure_pr_guard:budget_utilization_hourly > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: secure-pr-guard
+        annotations:
+          summary: "High hourly budget utilization"
+          description: "Hourly budget utilization is {{ $value | humanizePercentage }} (>80%)"
+
+      - alert: HourlyBudgetCritical
+        expr: secure_pr_guard:budget_utilization_hourly > 0.95
+        for: 1m
+        labels:
+          severity: critical
+          service: secure-pr-guard
+        annotations:
+          summary: "Critical hourly budget utilization"
+          description: "Hourly budget utilization is {{ $value | humanizePercentage }} (>95%)"
+
+      - alert: DailyBudgetHigh
+        expr: secure_pr_guard:budget_utilization_daily > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: secure-pr-guard
+        annotations:
+          summary: "High daily budget utilization"
+          description: "Daily budget utilization is {{ $value | humanizePercentage }} (>80%)"
+
+  - name: performance_alerts
+    rules:
+      # Performance alerts
+      - alert: HighLatency
+        expr: secure_pr_guard:avg_latency_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: secure-pr-guard
+        annotations:
+          summary: "High average latency detected"
+          description: "Average latency is {{ $value }}s (>10s)"
+
+      - alert: HighErrorRate
+        expr: secure_pr_guard:error_rate > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: secure-pr-guard
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (>5%)"
+
+      # System health alerts
+      - alert: ServiceDown
+        expr: up{job="secure-pr-guard"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: secure-pr-guard
+        annotations:
+          summary: "Secure PR Guard service is down"
+          description: "The main application service has been down for more than 1 minute"
+
+      - alert: MonitoringDown
+        expr: up{job="pr-guard-monitor"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: secure-pr-guard
+        annotations:
+          summary: "Monitoring dashboard is down"
+          description: "The monitoring dashboard has been down for more than 5 minutes"

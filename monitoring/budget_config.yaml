@@ -1,0 +1,10 @@
+console_enabled: true
+cooldown_minutes: 1
+critical_threshold: 0.9
+daily_limit: 0.2
+efficiency_min: 0.08
+email_enabled: true
+hourly_limit: 0.08
+slack_enabled: true
+spike_threshold: 2.0
+warning_threshold: 0.7
