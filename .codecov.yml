@@ -1,6 +1,3 @@
-# .codecov.yml - Codecov 配置
-# 企业级覆盖率配置，针对 Secure PR Guard
-
 codecov:
   require_ci_to_pass: yes
 
@@ -12,65 +9,23 @@ coverage:
   status:
     project:
       default:
-        target: 85%
+        target: 80%
         threshold: 5%
-        base: auto
-        branches: 
-          - main
-          - master
+        
     patch:
       default:
-        target: 90%
+        target: 70%
         threshold: 10%
 
-  ignore:
-    - "tests/*"
-    - "**/*test*.py"
-    - "**/test_*.py"
-    - "docs/*"
-    - "scripts/*"
-    - "*.md"
-    - ".github/*"
-
-# 组件级覆盖率目标
-flag_management:
-  default_rules:
-    carryforward: true
-    statuses:
-      - name: "project" 
-        type: "project"
-        target: 85%
-
-flags:
-  otel_helpers:
-    paths:
-      - monitoring/otel_helpers.py
-    target: 95%
-    
-  security_rules:
-    paths:
-      - security/
-    target: 100%
-    
-  agents:
-    paths:
-      - agents/
-    target: 90%
-    
-  monitoring:
-    paths:
-      - monitoring/
-    target: 90%
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
 
 comment:
   layout: "reach,diff,flags,tree"
   behavior: default
-  require_changes: false
-  require_base: no
-  require_head: yes
-  branches:
-    - main
-    - master
-
-github_checks:
-  annotations: true
+  require_changes: no

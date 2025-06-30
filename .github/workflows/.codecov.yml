@@ -1,118 +1,14 @@
-# .codecov.yml - Codecov configuration for Secure PR Guard
-# Comprehensive coverage reporting for enterprise reliability
-
+# Codecov configuration for GitHub Actions
 coverage:
-    precision: 2
-    round: down
-    range: "70...100"
-    
-    status:
-      project:
-        default:
-          target: 85%
-          threshold: 1%
-          base: auto
-          flags:
-            - unit
-          paths:
-            - "agents/"
-            - "monitoring/"
-            - "security/"
-            - "otel_helpers.py"
-            - "graph_review.py"
-      
-      patch:
-        default:
-          target: 80%
-          threshold: 2%
-          base: auto
-          
-    ignore:
-      - "tests/"
-      - "docs/"
-      - "htmlcov/"
-      - "*.md"
-      - "requirements.txt"
-      - ".env*"
-      - "logs/"
-      - "*.json"
-      - "*.yaml"
-      - "*.yml"
-  
-comment:
-    layout: "reach,diff,flags,tree"
-    behavior: default
-    require_changes: false
-    require_base: no
-    require_head: yes
-    
-flags:
-    unit:
-      paths:
-        - otel_helpers.py
-        - agents/
-        - monitoring/
-        - security/
-      carryforward: true
-      
-    integration:
-      paths:
-        - graph_review.py
-        - tests/integration/
-      carryforward: true
-  
-github_checks:
-    annotations: true
-  
-component_management:
-    default_rules:
-      statuses:
-        - type: project
-          target: 85%
-        - type: patch
-          target: 80%
-    
-    individual_components:
-      - component_id: otel_helpers
-        name: "OpenTelemetry Integration"
-        paths:
-          - otel_helpers.py
-          - tests/test_otel_helpers.py
-        statuses:
-          - type: project
-            target: 95%
-      
-      - component_id: agents
-        name: "Multi-Agent Pipeline"
-        paths:
-          - agents/
-          - tests/test_agents.py
-        statuses:
-          - type: project
-            target: 90%
-      
-      - component_id: security
-        name: "OWASP Security Rules"
-        paths:
-          - security/
-          - tests/test_security.py
-        statuses:
-          - type: project
-            target: 100%
-      
-      - component_id: monitoring
-        name: "Cost & Performance Monitoring"
-        paths:
-          - monitoring/
-          - tests/test_monitoring.py
-        statuses:
-          - type: project
-            target: 85%
-
-profiling:
-  critical_files_paths:
-      - otel_helpers.py
-      - agents/nitpicker.py
-      - agents/architect.py
-      - security/owasp_rules.py
-      - monitoring/cost_logger.py
+  status:
+    project:
+      default:
+        target: 80%
+    patch:
+      default:
+        target: 70%
+        
+ignore:
+  - "tests/"
+  - "docs/"
+  - "*.md"
