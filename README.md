@@ -1,10 +1,10 @@
 # Secure-PR-Guard
-
-[![CI/CD Pipeline](https://github.com/siwenwang0803/secure-pr-guard/workflows/🛡️%20Secure%20PR%20Guard%20-%20Enterprise%20CI/CD%20Pipeline/badge.svg)](https://github.com/siwenwang0803/secure-pr-guard/actions)
+[![CI](https://github.com/siwenwang0803/secure-pr-guard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/siwenwang0803/secure-pr-guard/actions)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen?style=flat-square&logo=pytest&logoColor=white)](https://codecov.io/gh/siwenwang0803/secure-pr-guard)
 [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP%20LLM%20Top%2010-100%25-brightgreen?style=flat-square&logo=owasp&logoColor=white)](https://github.com/siwenwang0803/secure-pr-guard)
 [![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11-blue?style=flat-square&logo=python&logoColor=white)](https://github.com/siwenwang0803/secure-pr-guard)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square&logo=opensourceinitiative&logoColor=white)](https://github.com/siwenwang0803/secure-pr-guard/blob/main/LICENSE)
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/🛡️%20Security-OWASP%20Compliant-brightgreen?style=for-the-badge" alt="Security"/>
