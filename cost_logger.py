@@ -88,30 +88,139 @@ def calculate_efficiency_metrics(prompt_tokens: int, completion_tokens: int,
         "efficiency.score": round((total_tokens / latency_ms) / (cost * 1000), 2)
     }
 
+# 在 cost_logger.py 的 log_cost 函数中，标准化所有 OTEL 属性
+
 def log_cost(pr_url: str, operation: str, model: str, 
              prompt_tokens: int, completion_tokens: int, 
              total_tokens: int, latency_ms: int) -> float:
     """
-    Enhanced cost logging with comprehensive OTEL attributes for Grafana dashboards
-    
-    Args:
-        pr_url: GitHub PR URL being processed
-        operation: Type of operation (e.g., 'nitpicker_analysis', 'patch_generation')
-        model: OpenAI model used
-        prompt_tokens: Input tokens used
-        completion_tokens: Output tokens generated
-        total_tokens: Total tokens used
-        latency_ms: API call latency in milliseconds
-        
-    Returns:
-        float: Cost in USD
+    Enhanced cost logging with STANDARDIZED OpenTelemetry attributes
     """
     # Calculate cost
-    price_per_token = MODEL_PRICE.get(model, 0.001)  # Default fallback
+    price_per_token = MODEL_PRICE.get(model, 0.001)
     cost = total_tokens * price_per_token
     
-    # Extract PR metadata for business context
+    # Extract PR metadata
     pr_metadata = extract_pr_metadata(pr_url)
+    
+    # 🔭 STANDARDIZED OpenTelemetry attributes
+    span = get_current_span()
+    if span and span.is_recording():
+        
+        # 💰 COST GOVERNANCE ATTRIBUTES (Executive Dashboard)
+        cost_attrs = {
+            "cost.usd": round(cost, 6),                    # Total cost in USD
+            "cost.model": model,                           # AI model used
+            "cost.model.pricing": price_per_token,         # Price per token
+            "cost.operation": operation,                   # Operation type for cost breakdown
+            "cost.per_token": round(cost / total_tokens, 6) if total_tokens > 0 else 0,
+        }
+        
+        # 🔤 TOKEN USAGE ATTRIBUTES (Resource Management)
+        tokens_attrs = {
+            "tokens.prompt": prompt_tokens,                # Input tokens
+            "tokens.completion": completion_tokens,        # Output tokens  
+            "tokens.total": total_tokens,                  # Total tokens
+            "tokens.prompt_ratio": round(prompt_tokens / total_tokens, 3) if total_tokens > 0 else 0,
+            "tokens.completion_ratio": round(completion_tokens / total_tokens, 3) if total_tokens > 0 else 0,
+            "tokens.per_second": round((total_tokens / latency_ms) * 1000, 2) if latency_ms > 0 else 0,
+        }
+        
+        # ⚡ LATENCY & PERFORMANCE ATTRIBUTES (SLO Monitoring)
+        latency_attrs = {
+            "latency.ms": latency_ms,                      # Latency in milliseconds
+            "latency.seconds": round(latency_ms / 1000, 3), # Latency in seconds
+            "latency.api_ms": latency_ms,                  # API call latency
+            "latency.category": (                          # Performance category
+                "fast" if latency_ms < 2000 else 
+                "medium" if latency_ms < 5000 else "slow"
+            ),
+        }
+        
+        # 🔧 OPERATION ATTRIBUTES (Business Logic)
+        operation_attrs = {
+            "operation.type": operation,                   # Operation type
+            "operation.name": f"{operation}_analysis",     # Detailed operation name
+            "operation.timestamp": int(time.time()),       # Unix timestamp
+            "operation.success": True,                     # Operation success status
+            "operation.source": "secure_pr_guard",        # Service identifier
+        }
+        
+        # 🤖 AI MODEL ATTRIBUTES (AI Governance)
+        ai_attrs = {
+            "ai.model": model,                            # AI model identifier
+            "ai.provider": "openai",                      # AI provider
+            "ai.operation": operation,                    # AI operation type
+            "ai.tokens.input": prompt_tokens,             # AI input tokens
+            "ai.tokens.output": completion_tokens,        # AI output tokens
+            "ai.cost.per_request": round(cost, 6),        # Cost per AI request
+        }
+        
+        # 📊 BUSINESS INTELLIGENCE ATTRIBUTES
+        business_attrs = {
+            **pr_metadata,                                # PR context (pr.url, pr.repository, etc.)
+            "service.name": "secure_pr_guard",           # Service name
+            "service.version": "v1.0-security",          # Service version
+            "service.operation": f"secure_pr_guard.{operation}", # Namespaced operation
+        }
+        
+        # 📈 EFFICIENCY & OPTIMIZATION ATTRIBUTES
+        efficiency_attrs = {
+            "efficiency.cost_per_token": round(cost / total_tokens, 6) if total_tokens > 0 else 0,
+            "efficiency.tokens_per_ms": round(total_tokens / latency_ms, 3) if latency_ms > 0 else 0,
+            "efficiency.cost_per_second": round((cost / latency_ms) * 1000, 6) if latency_ms > 0 else 0,
+            "efficiency.score": round(                    # Composite efficiency score
+                (total_tokens / (latency_ms / 1000)) / (cost + 0.001), 2
+            ) if latency_ms > 0 else 0,
+        }
+        
+        # 🏷️ CATEGORIZATION ATTRIBUTES (Filtering & Grouping)
+        category_attrs = {
+            "category.cost_tier": (                       # Cost categorization
+                "low" if cost < 0.01 else 
+                "medium" if cost < 0.10 else "high"
+            ),
+            "category.latency_tier": (                    # Latency categorization
+                "fast" if latency_ms < 2000 else 
+                "medium" if latency_ms < 5000 else "slow"
+            ),
+            "category.token_tier": (                      # Token usage categorization
+                "small" if total_tokens < 500 else 
+                "medium" if total_tokens < 2000 else "large"
+            ),
+        }
+        
+        # 🔭 SET ALL STANDARDIZED ATTRIBUTES AT ONCE
+        all_standardized_attrs = {
+            **cost_attrs,
+            **tokens_attrs, 
+            **latency_attrs,
+            **operation_attrs,
+            **ai_attrs,
+            **business_attrs,
+            **efficiency_attrs,
+            **category_attrs
+        }
+        
+        span.set_attributes(all_standardized_attrs)
+        
+        # 📝 ADD STRUCTURED EVENT
+        span.add_event("cost_tracking.completed", {
+            "cost.usd": cost,
+            "tokens.total": total_tokens,
+            "latency.ms": latency_ms,
+            "operation.type": operation,
+            "efficiency.score": efficiency_attrs["efficiency.score"]
+        })
+        
+        # 🎯 SET SPAN STATUS WITH COST CONTEXT
+        if cost > 0.50:  # High cost threshold
+            span.set_status(Status(StatusCode.OK, f"High cost operation: ${cost:.4f}"))
+        elif latency_ms > 10000:  # High latency threshold  
+            span.set_status(Status(StatusCode.OK, f"Slow operation: {latency_ms}ms"))
+        else:
+            span.set_status(Status(StatusCode.OK, f"Normal: ${cost:.4f}, {latency_ms}ms"))
+            
     
     # Calculate efficiency metrics
     efficiency_metrics = calculate_efficiency_metrics(
