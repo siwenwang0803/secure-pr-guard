@@ -2,7 +2,7 @@
 
 [![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#)
 
-**🎬 [Watch 2-Minute Demo](demo_materials/secure_pr_guard_demo_final.mp4)**
+**🎬 [Watch 2-Minute Demo](demo_materials/secure_pr_guard_demo_final.mp4) | ⭐ [Star this project](#)**
 
 > **Enterprise AI Code Review System with Real-time Budget Monitoring**
 > 
