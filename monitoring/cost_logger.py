@@ -7,47 +7,84 @@ import os
 import csv
 import time
 import pathlib
+import sys
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # OpenTelemetry imports
 from opentelemetry import trace
 from opentelemetry.trace import get_current_span, Status, StatusCode
-from monitoring.budget_guard import check_budget_integration
-# Load environment variables
-load_dotenv()
-# Add this import at the top of cost_logger.py
-try:
-    from monitoring.budget_guard import check_budget_integration
-    BUDGET_GUARD_ENABLED = True
-    print("🛡️ Budget Guard integration enabled")
-except ImportError:
-    BUDGET_GUARD_ENABLED = False
-    print("⚠️ Budget Guard not available - install dependencies")
 
-# Add this call at the end of the log_cost function, just before returning cost:
-    
-    # 🛡️ BUDGET GUARD INTEGRATION - Real-time budget monitoring
-    if BUDGET_GUARD_ENABLED:
+# Add project root to Python path for proper imports
+project_root = pathlib.Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Safe budget guard integration with proper error handling
+BUDGET_GUARD_ENABLED = False
+_budget_guard = None
+
+def _get_budget_guard():
+    """Safely initialize budget guard to avoid circular imports"""
+    global _budget_guard, BUDGET_GUARD_ENABLED
+    if _budget_guard is None:
         try:
-            check_budget_integration(
-                pr_url=pr_url,
-                operation=operation,
-                cost=cost,
-                latency_ms=latency_ms,
-                tokens=total_tokens
-            )
+            # Use absolute import path
+            from monitoring.budget_guard import BudgetGuard
+            _budget_guard = BudgetGuard()
+            BUDGET_GUARD_ENABLED = True
+            print("🛡️ Budget Guard integration enabled")
+        except ImportError as e:
+            BUDGET_GUARD_ENABLED = False
+            _budget_guard = None
+            print(f"⚠️ Budget Guard not available: {e}")
         except Exception as e:
-            print(f"⚠️ Budget check failed: {e}")
-            # Don't fail the main operation due to budget check errors
-try:
-    from monitoring.budget_guard import check_budget_integration
-    BUDGET_GUARD_ENABLED = True
-    print("🛡️ Budget Guard integration enabled - Real-time monitoring active")
-except ImportError as e:
-    BUDGET_GUARD_ENABLED = False
-    print(f"⚠️ Budget Guard not available: {e}")
-    print("💡 Install: pip install PyYAML requests click")    
+            BUDGET_GUARD_ENABLED = False
+            _budget_guard = None
+            print(f"⚠️ Budget Guard initialization failed: {e}")
+    return _budget_guard
+
+def check_budget_integration_safe(pr_url: str, operation: str, cost: float, 
+                                 latency_ms: int, tokens: int) -> None:
+    """
+    安全的 budget 检查函数，避免循环导入
+    """
+    try:
+        guard = _get_budget_guard()
+        if guard and BUDGET_GUARD_ENABLED:
+            alerts = guard.check_budget_limits(pr_url=pr_url, operation=operation)
+            
+            # 添加到 OpenTelemetry span
+            span = get_current_span()
+            if span and span.is_recording():
+                span.set_attributes({
+                    "budget.monitoring.enabled": True,
+                    "budget.check.alerts_triggered": len(alerts),
+                    "budget.check.operation": operation
+                })
+                
+                if alerts:
+                    span.add_event("budget_check_completed", {
+                        "alerts_count": len(alerts),
+                        "highest_severity": max(alert.severity for alert in alerts) if alerts else "none"
+                    })
+        else:
+            # Don't spam console in normal operation
+            pass
+            
+    except Exception as e:
+        print(f"⚠️ Budget integration error: {e}")
+        
+        # 记录错误到 span
+        span = get_current_span()
+        if span and span.is_recording():
+            span.set_attributes({
+                "budget.integration.error": str(e),
+                "budget.integration.enabled": False
+            })
    
 # Cost tracking file
 COST_CSV = pathlib.Path("logs/cost.csv")
@@ -120,8 +157,6 @@ def calculate_efficiency_metrics(prompt_tokens: int, completion_tokens: int,
         "efficiency.score": round((total_tokens / latency_ms) / (cost * 1000), 2)
     }
 
-# 在 cost_logger.py 的 log_cost 函数中，标准化所有 OTEL 属性
-
 def log_cost(pr_url: str, operation: str, model: str, 
              prompt_tokens: int, completion_tokens: int, 
              total_tokens: int, latency_ms: int) -> float:
@@ -135,10 +170,14 @@ def log_cost(pr_url: str, operation: str, model: str,
     # Extract PR metadata
     pr_metadata = extract_pr_metadata(pr_url)
     
-    # 🔭 STANDARDIZED OpenTelemetry attributes
+    # Calculate efficiency metrics
+    efficiency_metrics = calculate_efficiency_metrics(
+        prompt_tokens, completion_tokens, total_tokens, latency_ms, cost
+    )
+    
+    # 🔭 Enhanced OpenTelemetry span attributes (FIXED - only set once)
     span = get_current_span()
     if span and span.is_recording():
-        
         # 💰 COST GOVERNANCE ATTRIBUTES (Executive Dashboard)
         cost_attrs = {
             "cost.usd": round(cost, 6),                    # Total cost in USD
@@ -222,7 +261,7 @@ def log_cost(pr_url: str, operation: str, model: str,
             ),
         }
         
-        # 🔭 SET ALL STANDARDIZED ATTRIBUTES AT ONCE
+        # 🔭 SET ALL STANDARDIZED ATTRIBUTES AT ONCE (FIXED)
         all_standardized_attrs = {
             **cost_attrs,
             **tokens_attrs, 
@@ -242,7 +281,7 @@ def log_cost(pr_url: str, operation: str, model: str,
             "tokens.total": total_tokens,
             "latency.ms": latency_ms,
             "operation.type": operation,
-            "efficiency.score": efficiency_attrs["efficiency.score"]
+            "efficiency.score": efficiency_attrs.get("efficiency.score", 0)
         })
         
         # 🎯 SET SPAN STATUS WITH COST CONTEXT
@@ -252,81 +291,6 @@ def log_cost(pr_url: str, operation: str, model: str,
             span.set_status(Status(StatusCode.OK, f"Slow operation: {latency_ms}ms"))
         else:
             span.set_status(Status(StatusCode.OK, f"Normal: ${cost:.4f}, {latency_ms}ms"))
-
-    
-    # Calculate efficiency metrics
-    efficiency_metrics = calculate_efficiency_metrics(
-        prompt_tokens, completion_tokens, total_tokens, latency_ms, cost
-    )
-    
-    # 🔭 Enhanced OpenTelemetry span attributes
-    span = get_current_span()
-    if span and span.is_recording():
-        # Core operation attributes
-        operation_attrs = {
-            "operation.type": operation,
-            "operation.name": f"{operation}_analysis",
-            "operation.timestamp": int(time.time()),
-            "service.operation": f"secure_pr_guard.{operation}",
-        }
-        
-        # 💰 Cost governance attributes (KEY for executive dashboards)
-        cost_attrs = {
-            "cost.usd": round(cost, 6),
-            "cost.model": model,
-            "cost.model.pricing": price_per_token,
-            "cost.tokens.prompt": prompt_tokens,
-            "cost.tokens.completion": completion_tokens,
-            "cost.tokens.total": total_tokens,
-            "cost.operation": operation,  # For cost breakdown by operation type
-        }
-        
-        # ⚡ Performance & SLO attributes  
-        performance_attrs = {
-            "latency.ms": latency_ms,
-            "latency.seconds": round(latency_ms / 1000, 3),
-            "latency.api_ms": latency_ms,  # Assuming most latency is API
-            "performance.tokens_per_second": efficiency_metrics.get("efficiency.tokens_per_second", 0),
-        }
-        
-        # 📊 Business intelligence attributes
-        business_attrs = {
-            **pr_metadata,
-            "ai.model": model,
-            "ai.provider": "openai",
-            "ai.tokens.input": prompt_tokens,
-            "ai.tokens.output": completion_tokens,
-            "ai.tokens.total": total_tokens,
-        }
-        
-        # 🎯 Efficiency & optimization attributes
-        efficiency_attrs = efficiency_metrics
-        
-        # Combine all attributes
-        all_attributes = {
-            **operation_attrs,
-            **cost_attrs, 
-            **performance_attrs,
-            **business_attrs,
-            **efficiency_attrs
-        }
-        
-        # Set all attributes at once
-        span.set_attributes(all_attributes)
-        
-        # Add operation-specific event for detailed tracing
-        span.add_event("cost_tracked", {
-            "cost.usd": cost,
-            "tokens.total": total_tokens,
-            "latency.ms": latency_ms,
-            "operation": operation
-        })
-        
-        # Set span status based on cost thresholds
-        if cost > 0.01:  # High cost threshold
-            span.set_status(Status(StatusCode.OK, f"High cost operation: ${cost:.4f}"))
-        else:
-            span.set_status(Status(StatusCode.OK, f"Normal cost: ${cost:.6f}"))
     
     # 📝 Ensure CSV exists and log to file
     initialize_cost_log()
@@ -361,25 +325,17 @@ def log_cost(pr_url: str, operation: str, model: str,
     if span and span.is_recording():
         span_context = span.get_span_context()
         trace_id = format(span_context.trace_id, '032x')[:8]  # Short trace ID for logs
-        print(f"🔭 Telemetry: Span {trace_id} | {len(all_attributes)} attributes | Event logged")
+        print(f"🔭 Telemetry: Span {trace_id} | {len(all_standardized_attrs)} attributes | Event logged")
     
-    check_budget_integration(pr_url, operation, cost, latency_ms, total_tokens)
+    # 🛡️ BUDGET GUARD INTEGRATION - Real-time budget monitoring (FIXED)
+    check_budget_integration_safe(pr_url, operation, cost, latency_ms, total_tokens)
+
     return cost
 
 def log_cost_with_error(pr_url: str, operation: str, error: Exception, 
                        partial_tokens: int = 0, latency_ms: int = 0) -> float:
     """
     Enhanced error logging with comprehensive OTEL error tracking
-    
-    Args:
-        pr_url: GitHub PR URL being processed
-        operation: Type of operation that failed
-        error: Exception that occurred
-        partial_tokens: Any tokens consumed before failure
-        latency_ms: Time elapsed before failure
-        
-    Returns:
-        float: Partial cost if any
     """
     # Record error in current span with enhanced attributes
     span = get_current_span()
@@ -421,46 +377,6 @@ def log_cost_with_error(pr_url: str, operation: str, error: Exception,
             total_tokens=partial_tokens,
             latency_ms=latency_ms
         )
-
-      # 🛡️ BUDGET GUARD INTEGRATION - Real-time budget monitoring
-    if BUDGET_GUARD_ENABLED:
-        try:
-            # Perform real-time budget check after cost logging
-            check_budget_integration(
-                pr_url=pr_url,
-                operation=operation,
-                cost=cost,
-                latency_ms=latency_ms,
-                tokens=total_tokens
-            )
-            
-            # Add budget status to OpenTelemetry span
-            span = get_current_span()
-            if span and span.is_recording():
-                span.set_attributes({
-                    "budget.monitoring.enabled": True,
-                    "budget.integration.status": "active",
-                    "budget.check.completed": True
-                })
-                
-        except Exception as e:
-            print(f"⚠️ Budget monitoring failed: {e}")
-            
-            # Record budget check failure in telemetry
-            span = get_current_span()
-            if span and span.is_recording():
-                span.set_attributes({
-                    "budget.monitoring.enabled": False,
-                    "budget.integration.error": str(e),
-                    "budget.check.completed": False
-                })
-                span.add_event("budget_check_failed", {
-                    "error": str(e),
-                    "operation": operation
-                })
-            
-            # Don't fail the main operation due to budget check errors
-            pass
         return cost
     
     # Log zero-cost error entry
@@ -478,12 +394,13 @@ def log_cost_with_error(pr_url: str, operation: str, error: Exception,
         ])
     
     print(f"❌ {operation} failed: {error} | {latency_ms}ms | $0.000000")
+    
     # 🛡️ Budget check for error cases (partial costs)
     if BUDGET_GUARD_ENABLED and partial_tokens > 0:
         try:
             # Check budget even for failed operations with partial costs
             partial_cost = partial_tokens * 0.00015  # Estimate using GPT-4o-mini price
-            check_budget_integration(
+            check_budget_integration_safe(
                 pr_url=pr_url,
                 operation=f"{operation}_error",
                 cost=partial_cost,
@@ -492,18 +409,12 @@ def log_cost_with_error(pr_url: str, operation: str, error: Exception,
             )
         except Exception as e:
             print(f"⚠️ Budget check failed for error case: {e}")
+    
     return 0.0
 
 def get_total_cost_for_pr(pr_url: str) -> Dict[str, Any]:
     """
     Calculate comprehensive cost and performance stats for a specific PR
-    Enhanced with efficiency metrics for dashboards
-    
-    Args:
-        pr_url: GitHub PR URL
-        
-    Returns:
-        Dict with enhanced cost and performance summary
     """
     if not COST_CSV.exists():
         return {
@@ -582,12 +493,7 @@ def get_total_cost_for_pr(pr_url: str) -> Dict[str, Any]:
     }
 
 def generate_cost_summary() -> str:
-    """
-    Generate an enhanced cost summary report with efficiency insights
-    
-    Returns:
-        str: Formatted cost summary with optimization recommendations
-    """
+    """Generate an enhanced cost summary report with efficiency insights"""
     if not COST_CSV.exists():
         return "No cost data available"
     
@@ -654,113 +560,50 @@ def generate_cost_summary() -> str:
    Average Latency: {avg_latency:.0f}ms
    Tokens/Second: {tokens_per_second:.1f}
    Cost/Second: ${cost_per_second:.6f}
-
-🤖 Model Breakdown:"""
-    
-    for model, stats in models_used.items():
-        avg_cost = stats["cost"] / stats["operations"] if stats["operations"] > 0 else 0
-        avg_tokens = stats["tokens"] / stats["operations"] if stats["operations"] > 0 else 0
-        efficiency = stats["tokens"] / stats["cost"] if stats["cost"] > 0 else 0
-        
-        summary += f"""
-   {model}:
-     Operations: {stats["operations"]}
-     Total Cost: ${stats["cost"]:.4f}
-     Avg Cost: ${avg_cost:.4f}
-     Avg Tokens: {avg_tokens:.0f}
-     Efficiency: {efficiency:.0f} tokens/$
-"""
-
-    summary += f"""
-📈 Operation Type Breakdown:"""
-    
-    for op_type, stats in operations_by_type.items():
-        avg_cost = stats["cost"] / stats["count"] if stats["count"] > 0 else 0
-        avg_tokens = stats["tokens"] / stats["count"] if stats["count"] > 0 else 0
-        avg_latency = stats["latency"] / stats["count"] if stats["count"] > 0 else 0
-        
-        summary += f"""
-   {op_type}:
-     Count: {stats["count"]}
-     Total Cost: ${stats["cost"]:.4f}
-     Avg Cost: ${avg_cost:.4f}
-     Avg Tokens: {avg_tokens:.0f}
-     Avg Latency: {avg_latency:.0f}ms
-"""
-    
-    # Add optimization recommendations
-    if operations > 10:  # Only show recommendations with sufficient data
-        highest_cost_op = max(operations_by_type.items(), 
-                             key=lambda x: x[1]["cost"])[0]
-        slowest_op = max(operations_by_type.items(), 
-                        key=lambda x: x[1]["latency"] / x[1]["count"])[0]
-        
-        summary += f"""
-💡 Optimization Recommendations:
-   - Highest cost operation: {highest_cost_op}
-   - Slowest operation: {slowest_op}
-   - Consider optimizing prompts for {highest_cost_op}
-   - Monitor latency for {slowest_op}
 """
     
     return summary
 
-# Enhanced decorator for automatic cost tracking
-def track_operation_cost(pr_url: str, operation: str):
+def get_budget_status_summary() -> str:
     """
-    Enhanced decorator to track cost and latency of OpenAI operations with full OTEL
+    Get a quick budget status summary for console output
+    Integration function for main workflow
+    """
+    if not BUDGET_GUARD_ENABLED:
+        return "🛡️ Budget monitoring: Disabled"
     
-    Usage:
-        @track_operation_cost("https://github.com/user/repo/pull/1", "nitpicker")
-        def my_ai_function():
-            # ... OpenAI API call
-            return response
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
+    try:
+        guard = _get_budget_guard()
+        if not guard:
+            return "🛡️ Budget monitoring: Not available"
             
-            # Create a new span for this operation with enhanced attributes
-            tracer = trace.get_tracer(__name__)
-            with tracer.start_as_current_span(f"cost_tracking.{operation}") as span:
-                # Set initial attributes
-                span.set_attributes({
-                    "operation.type": operation,
-                    "operation.name": f"tracked_{operation}",
-                    "operation.start_time": start_time,
-                    **extract_pr_metadata(pr_url)
-                })
+        status = guard.get_budget_status()
+        
+        if status["status"] != "active":
+            return f"🛡️ Budget monitoring: {status.get('message', 'Unknown')}"
+        
+        hourly_pct = status['hourly_usage']['percentage']
+        daily_pct = status['daily_usage']['percentage']
+        alerts = status['recent_alerts']
+        
+        # Color coding for status
+        if hourly_pct > 90 or daily_pct > 90:
+            status_emoji = "🚨"
+            level = "CRITICAL"
+        elif hourly_pct > 70 or daily_pct > 70:
+            status_emoji = "⚠️"
+            level = "WARNING"
+        else:
+            status_emoji = "✅"
+            level = "OK"
+        
+        return (f"{status_emoji} Budget: {level} | "
+                f"Hourly: {hourly_pct:.1f}% | "
+                f"Daily: {daily_pct:.1f}% | "
+                f"Alerts: {alerts}")
                 
-                try:
-                    # Execute the function
-                    result = func(*args, **kwargs)
-                    
-                    # Calculate latency
-                    latency_ms = int((time.time() - start_time) * 1000)
-                    
-                    # Extract usage info if available
-                    if hasattr(result, 'usage') and result.usage:
-                        usage = result.usage
-                        log_cost(
-                            pr_url=pr_url,
-                            operation=operation,
-                            model=kwargs.get('model', 'gpt-4o-mini'),
-                            prompt_tokens=usage.prompt_tokens,
-                            completion_tokens=usage.completion_tokens,
-                            total_tokens=usage.total_tokens,
-                            latency_ms=latency_ms
-                        )
-                    
-                    return result
-                    
-                except Exception as e:
-                    # Log error case with enhanced tracking
-                    latency_ms = int((time.time() - start_time) * 1000)
-                    log_cost_with_error(pr_url, operation, e, latency_ms=latency_ms)
-                    raise
-                    
-        return wrapper
-    return decorator
+    except Exception as e:
+        return f"🛡️ Budget monitoring: Error ({e})"
 
 # Test and validation functions
 if __name__ == "__main__":
@@ -810,43 +653,3 @@ if __name__ == "__main__":
     
     print("\n🎯 Enhanced cost logger test completed!")
     print("💡 Next: Run 'python graph_review.py <PR_URL>' to see enhanced telemetry in action")
-
-
-def get_budget_status_summary() -> str:
-    """
-    Get a quick budget status summary for console output
-    Integration function for main workflow
-    """
-    if not BUDGET_GUARD_ENABLED:
-        return "🛡️ Budget monitoring: Disabled"
-    
-    try:
-        from monitoring.budget_guard import BudgetGuard
-        guard = BudgetGuard()
-        status = guard.get_budget_status()
-        
-        if status["status"] != "active":
-            return f"🛡️ Budget monitoring: {status.get('message', 'Unknown')}"
-        
-        hourly_pct = status['hourly_usage']['percentage']
-        daily_pct = status['daily_usage']['percentage']
-        alerts = status['recent_alerts']
-        
-        # Color coding for status
-        if hourly_pct > 90 or daily_pct > 90:
-            status_emoji = "🚨"
-            level = "CRITICAL"
-        elif hourly_pct > 70 or daily_pct > 70:
-            status_emoji = "⚠️"
-            level = "WARNING"
-        else:
-            status_emoji = "✅"
-            level = "OK"
-        
-        return (f"{status_emoji} Budget: {level} | "
-                f"Hourly: {hourly_pct:.1f}% | "
-                f"Daily: {daily_pct:.1f}% | "
-                f"Alerts: {alerts}")
-                
-    except Exception as e:
-        return f"🛡️ Budget monitoring: Error ({e})"

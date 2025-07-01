@@ -19,7 +19,6 @@ services:
       - .env
     ports:
       - "8000:8000"  # Main application
-      - "8080:8080"  # Monitoring dashboard
     volumes:
       - ./logs:/app/logs
       - ./monitoring/config:/app/monitoring/config
@@ -30,11 +29,50 @@ services:
       - redis
       - prometheus
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    command: ["python", "-m", "http.server", "8000"]  # Simple web server for health checks
+
+  # ============================================================================
+  # Budget Guard - Real-time Monitoring Service
+  # ============================================================================
+  budget-guard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: pr-guard-budget
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./monitoring:/app/monitoring
+    networks:
+      - pr-guard-network
+    depends_on:
+      - secure-pr-guard
+    # Run budget checks every 5 minutes
+    command: >
+      sh -c "
+        while true; do
+          echo '🛡️ Running budget check...'
+          python monitoring/budget_guard.py --check
+          echo '💤 Sleeping for 5 minutes...'
+          sleep 300
+        done
+      "
+    healthcheck:
+      test: ["CMD", "python", "monitoring/budget_guard.py", "--check"]
+      interval: 300s  # 5 minutes
+      timeout: 30s
+      retries: 2
 
   # ============================================================================
   # Monitoring Dashboard (Standalone)
@@ -46,7 +84,7 @@ services:
       target: production
     container_name: pr-guard-monitor
     restart: unless-stopped
-    command: ["python", "monitoring/pr_guard_monitor.py", "--timeframe", "24h", "--auto-refresh"]
+    command: ["python", "monitoring/pr_guard_monitor.py", "--timeframe", "24h", "--auto-refresh", "--no-browser"]
     environment:
       - ENVIRONMENT=development
       - DASHBOARD_PORT=8080
@@ -146,6 +184,8 @@ services:
       - secure-pr-guard
       - monitoring-dashboard
       - grafana
+    profiles:
+      - production  # Only start nginx in production
 
 # ============================================================================
 # Volumes for Data Persistence
