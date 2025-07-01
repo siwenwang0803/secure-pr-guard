@@ -2,54 +2,34 @@
 
 [![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#)
 
-**🎬 [Watch 2-Minute Demo](demo_materials/secure_pr_guard_demo_final.mp4) | ⭐ [Star this project](#)**
+**🎬 [Demo Video](demo_materials/secure_pr_guard_demo_final.mp4) | ⭐ [Star this project](https://github.com/siwenwang0803/secure-pr-guard)**
 
-> **Enterprise AI Code Review System with Real-time Budget Monitoring**
+> **Multi-Agent AI Code Review System with OWASP LLM Compliance and Cost Monitoring**
 > 
-> Automatically review GitHub Pull Requests using multi-agent AI pipeline with complete OWASP LLM Top-10 security compliance and intelligent cost control.
+> Automatically analyzes GitHub Pull Requests using GPT-4o with complete OWASP LLM Top-10 security scanning and real-time budget tracking via OpenTelemetry.
 
 ---
 
-## 🚀 Quick Start (One Command)
+## 🚀 Quick Start
 
 ```bash
-# Enterprise deployment in 30 seconds
+# Clone and setup
 git clone https://github.com/siwenwang0803/secure-pr-guard.git
 cd secure-pr-guard && cp .env.example .env
 # Add your OPENAI_API_KEY to .env
+
+# One-command deployment
 docker-compose up -d
 
 # Analyze any GitHub PR
 python graph_review.py https://github.com/facebook/react/pull/27000
 ```
 
-**🎯 Immediate Value:** $0.15/PR (vs industry $2.50+) | 17s analysis | 100% OWASP compliance
+**Access monitoring dashboard:** `http://localhost:8081`
 
 ---
 
-## ✨ Why Enterprises Choose Secure PR Guard
-
-### 💰 **Intelligent FinOps Control**
-- **Real-Time Budget Monitoring** with Slack/Email alerts
-- **Predictive Cost Analytics** - Never exceed your AI budget again
-- **94% Cost Savings** vs traditional code review tools
-- **Executive Dashboards** for complete ROI visibility
-
-### 🛡️ **100% OWASP LLM Security** 
-- **Complete Top-10 Coverage** - All 10 OWASP LLM risks detected
-- **Security-First Architecture** with vulnerability pattern matching
-- **Compliance Ready** for enterprise security audits
-- **Risk Assessment Engine** with automated prioritization
-
-### 🤖 **Multi-Agent AI Pipeline**
-- **GPT-4o Analysis** with advanced static code review
-- **Auto-Remediation** - Safe formatting fixes with human oversight
-- **Smart GitHub Integration** - Actionable PR comments
-- **99.9% SLA** with comprehensive observability
-
----
-
-## 🏗️ Enterprise Architecture
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
@@ -88,135 +68,265 @@ graph TD
     class A,G,K,L outputNode
 ```
 
-**🔄 Multi-Agent Workflow:**
-1. **Fetch** → Pull PR diff via GitHub REST API
-2. **Analyze** → GPT-4o analysis + OWASP LLM security scanning  
-3. **Assess** → Risk ranking and security prioritization
-4. **Patch** → Safe auto-fixes for formatting/style issues
-5. **Report** → Markdown summary with actionable insights
+**Multi-Agent Workflow:**
+1. **Fetch Agent** → Retrieves PR diff via GitHub REST API
+2. **Nitpicker Agent** → GPT-4o analysis + OWASP LLM security scanning  
+3. **Architect Agent** → Risk assessment and prioritization
+4. **Patch Agent** → Generates safe auto-fixes for formatting issues
+5. **Comment Agent** → Posts markdown summary to GitHub PR
 
 ---
 
-## 📊 Enterprise Performance Metrics
+## ✨ Key Features
 
-| **Metric** | **Secure PR Guard** | **Industry Standard** | **Improvement** |
-|------------|--------------------|--------------------|-----------------|
-| 💰 **Cost per PR** | $0.15 | $2.50+ | **94% savings** |
-| ⚡ **Analysis Speed** | ~17 seconds | 45+ seconds | **62% faster** |
-| 🛡️ **OWASP Coverage** | 100% (10/10) | ~60% (6/10) | **Complete coverage** |
-| 📈 **SLA Compliance** | 99.9% uptime | 95% typical | **Enterprise grade** |
-| 🧪 **Test Coverage** | 80%+ | 70% average | **Production ready** |
+### 🤖 **Multi-Agent AI Pipeline**
+- **GPT-4o Integration** with structured prompting for code analysis
+- **Agent Orchestration** using LangGraph for reliable workflow execution
+- **Patch Generation** with safe auto-fixes for style and formatting issues
+- **GitHub Integration** via REST API for seamless PR commenting
 
----
+### 🛡️ **OWASP LLM Top-10 Security Compliance**
+- **Complete Coverage** of all 10 OWASP LLM security risks
+- **Static Analysis** with custom vulnerability pattern detection
+- **Dynamic Scanning** during AI model interactions
+- **Risk Scoring** and prioritization for security findings
 
-## 🛡️ Complete OWASP LLM Top-10 Compliance
+### 💰 **Real-Time Cost Monitoring**
+- **OpenTelemetry Integration** for distributed tracing and metrics
+- **Budget Guards** with configurable thresholds and multi-channel alerts
+- **Token Analytics** with detailed usage breakdowns and efficiency metrics
+- **Cost Attribution** per PR, agent, and operation for transparency
 
-**✅ All 10 Security Risks Covered:**
-
-| **ID** | **OWASP LLM Risk** | **Detection Method** | **Status** |
-|--------|-------------------|---------------------|------------|
-| LLM01 | Prompt Injection | Static + Dynamic Analysis | ✅ **Active** |
-| LLM02 | Insecure Output Handling | Pattern Matching | ✅ **Active** |
-| LLM03 | Training Data Poisoning | Content Analysis | ✅ **Active** |
-| LLM04 | Model Denial of Service | Rate Limiting + Monitoring | ✅ **Active** |
-| LLM05 | Supply Chain Vulnerabilities | Dependency Scanning | ✅ **Active** |
-| LLM06 | Sensitive Information Disclosure | PII Detection Engine | ✅ **Active** |
-| LLM07 | Insecure Plugin Design | API Security Analysis | ✅ **Active** |
-| LLM08 | Excessive Agency | Permission Auditing | ✅ **Active** |
-| LLM09 | Overreliance | Confidence Scoring | ✅ **Active** |
-| LLM10 | Model Theft | Access Control Validation | ✅ **Active** |
+### 📊 **Enterprise Observability**
+- **Grafana Dashboard** with 9 comprehensive monitoring views
+- **SLA Tracking** with P95/P99 latency analysis
+- **Health Monitoring** with automated alerting via Slack/Email
+- **Executive Reporting** with cost and performance KPIs
 
 ---
 
-## 💻 Enterprise Deployment Options
+## 🛡️ OWASP LLM Top-10 Implementation
+
+| **Risk ID** | **OWASP Category** | **Detection Method** | **Implementation** |
+|-------------|-------------------|---------------------|-------------------|
+| LLM01 | Prompt Injection | Static + Dynamic Analysis | Input sanitization + pattern matching |
+| LLM02 | Insecure Output Handling | Response validation | Output encoding + content filtering |
+| LLM03 | Training Data Poisoning | Content analysis | Source validation + integrity checks |
+| LLM04 | Model Denial of Service | Rate limiting + monitoring | Request throttling + circuit breakers |
+| LLM05 | Supply Chain Vulnerabilities | Dependency scanning | Package analysis + vulnerability DB |
+| LLM06 | Sensitive Information Disclosure | PII detection | Data classification + redaction |
+| LLM07 | Insecure Plugin Design | API security analysis | Permission validation + sandbox execution |
+| LLM08 | Excessive Agency | Permission auditing | Capability restriction + approval flows |
+| LLM09 | Overreliance | Confidence scoring | Uncertainty quantification + human review |
+| LLM10 | Model Theft | Access control validation | Authentication + usage monitoring |
+
+---
+
+## 💻 Deployment
 
 ### 🐳 **Docker Compose (Recommended)**
 ```bash
-# Production-ready deployment with monitoring
-./scripts/deploy.sh production --test --backup
+# Development deployment
+docker-compose up -d
 
-# Complete service stack:
+# Production deployment with monitoring
+./scripts/deploy.sh production
+
+# Services included:
 # ├── secure-pr-guard     (main application)
-# ├── budget-guard        (real-time cost monitoring)  
-# ├── monitoring-dashboard (enterprise analytics)
-# ├── redis              (caching layer)
-# ├── prometheus         (metrics collection)
+# ├── budget-guard        (cost monitoring)  
+# ├── monitoring-dashboard (analytics)
+# ├── redis              (caching)
+# ├── prometheus         (metrics)
 # └── grafana            (visualization)
 ```
 
-### ☸️ **Kubernetes Enterprise**
+### ☸️ **Kubernetes**
 ```bash
-# Helm chart for production clusters
+# Helm chart deployment
 helm install secure-pr-guard ./helm/ --namespace pr-guard
 kubectl get pods -n pr-guard
-
-# Includes:
-# - Horizontal Pod Autoscaling
-# - Persistent Volume Claims  
-# - Service Mesh Integration
-# - Enterprise RBAC
 ```
 
-### 🔧 **Configuration Management**
+### 🔧 **Configuration**
+```bash
+# Environment variables
+OPENAI_API_KEY=sk-your-key-here           # Required: OpenAI API access
+OPENAI_ORG_ID=org-your-org-here          # Optional: Organization ID
+
+# Budget monitoring
+BUDGET_DAILY_LIMIT=50.0                   # Daily budget limit in USD
+BUDGET_HOURLY_LIMIT=10.0                  # Hourly burst protection
+SLACK_WEBHOOK_URL=https://hooks.slack.com/... # Alert notifications
+
+# Observability
+OTEL_EXPORTER_OTLP_ENDPOINT=https://tempo... # Grafana Cloud integration
+```
+
+---
+
+## 📊 Technical Specifications
+
+### **Performance Metrics**
+- **Average Analysis Time**: ~17 seconds per PR
+- **Token Efficiency**: ~970 tokens per analysis (850 prompt + 120 completion)
+- **Cost Per Operation**: ~$0.015 USD with GPT-4o pricing
+- **P95 Latency**: <30 seconds end-to-end
+- **Test Coverage**: 80%+ with comprehensive CI/CD
+
+### **Scalability**
+- **Concurrent PRs**: Up to 5 parallel analyses
+- **Rate Limiting**: Configurable per OpenAI tier
+- **Memory Usage**: ~512MB per worker process
+- **Storage**: <100MB for logs and metrics (daily rotation)
+
+### **Security**
+- **API Key Management**: Environment variables with optional secrets manager
+- **Network Security**: Container isolation with minimal surface area
+- **Data Handling**: No persistent storage of code or analysis results
+- **Audit Logging**: Complete OpenTelemetry trace for compliance
+
+---
+
+## 📈 Monitoring & Analytics
+
+### **Real-Time Dashboard**
+Access comprehensive monitoring at `http://localhost:8081`:
+
+- **💰 Cost Trends** - Budget usage with forecasting
+- **⚡ Performance Metrics** - Latency distribution and SLA zones  
+- **🎯 Token Analytics** - Usage patterns and optimization insights
+- **🚨 System Health** - Service status and error rates
+- **📋 Operations Log** - Detailed analysis history
+
+### **Budget Configuration**
 ```yaml
 # monitoring/budget_config.yaml
-enterprise_limits:
-  daily_budget: 50.0        # $50/day enterprise limit
-  hourly_burst: 10.0        # Burst protection  
-  warning_threshold: 75%    # Early warning alerts
-  critical_threshold: 90%   # Emergency cutoff
+limits:
+  daily_budget: 50.0
+  hourly_budget: 10.0
+  warning_threshold: 0.75
+  critical_threshold: 0.90
 
-alerts:
+notifications:
   slack_webhook: "https://hooks.slack.com/..."
-  email_recipients: ["admin@company.com", "finops@company.com"]
-  pagerduty_integration: true
+  email_recipients: ["admin@company.com"]
+  console_logging: true
+```
+
+### **OpenTelemetry Integration**
+```python
+# Custom metrics and tracing
+from opentelemetry import trace, metrics
+
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+
+# Track analysis operations
+with tracer.start_as_current_span("pr_analysis") as span:
+    span.set_attribute("pr.number", pr_number)
+    span.set_attribute("cost.tokens", total_tokens)
 ```
 
 ---
 
-## 📈 Real-Time Monitoring & Analytics
+## 🛠️ Development
 
-### 🎯 **Executive Dashboard** (`http://localhost:8081`)
-
-**📊 Comprehensive Views:**
-- **💰 Cost Trends** - Real-time budget tracking with forecasting
-- **⚡ Performance Metrics** - P95/P99 latency analysis with SLA zones  
-- **🎯 Token Analytics** - Usage optimization and efficiency insights
-- **🚨 System Health** - Automated monitoring with intelligent alerts
-- **📈 Executive KPIs** - Management reporting and ROI analytics
-
-### 💰 **Intelligent Budget Guard**
+### **Setup**
 ```bash
-# Real-time budget monitoring
-docker-compose exec budget-guard python monitoring/budget_guard.py --check
+# Development environment
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-# Sample output:
-{
-  "status": "active",
-  "hourly_usage": {"current": 0.28, "limit": 0.20, "percentage": 139.3},
-  "alerts_triggered": 8,
-  "efficiency_score": 8.2,
-  "cost_per_operation": 0.0174
-}
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest tests/ -v --cov=monitoring
 ```
 
-### 🔍 **OpenTelemetry Integration**
-- **Distributed Tracing** across all AI operations
-- **Custom Metrics** for cost, latency, and quality
-- **Grafana Cloud** integration for enterprise observability
-- **Automated Alerting** with PagerDuty/Slack/Email
+### **Project Structure**
+```
+secure-pr-guard/
+├── agents/                  # Multi-agent implementation
+│   ├── fetch_diff.py       # GitHub API integration
+│   ├── nitpicker.py        # AI analysis + OWASP scanning
+│   ├── architect.py        # Risk assessment
+│   └── patch.py            # Auto-fix generation
+├── monitoring/             # Observability and budget control
+│   ├── budget_guard.py     # Real-time cost monitoring
+│   ├── dashboard.py        # Analytics dashboard
+│   └── telemetry.py        # OpenTelemetry instrumentation
+├── security/               # OWASP LLM compliance
+│   ├── rules/              # Security rule definitions
+│   └── validators/         # Input/output validation
+└── tests/                  # Comprehensive test suite
+```
+
+### **Contributing**
+```bash
+# Code quality checks
+black . && flake8 . && mypy .
+
+# Run security tests
+pytest tests/security/ -v
+
+# Update documentation
+make docs
+```
 
 ---
 
-## 🎯 Enterprise Use Cases
+## 🎯 Use Cases
 
-### 👨‍💻 **Development Teams**
-- **Automated Security Review** for every Pull Request
-- **Cost-Effective AI Analysis** with transparent pricing
-- **Reduced Manual Overhead** - Focus on business logic
-- **Continuous Quality** improvement with AI insights
+### **Open Source Projects**
+- Automated security review for community contributions
+- Cost-controlled AI analysis for maintainer teams
+- Consistent code quality enforcement
 
-### 🔒 **Security & Compliance Teams**  
-- **OWASP LLM Validation** for all AI code interactions
-- **Vulnerability Pattern Detection** with risk scoring
-- **
+### **Development Teams**
+- Real-time feedback on security vulnerabilities
+- Budget-aware AI tooling integration
+- Comprehensive audit trails for compliance
+
+### **Security Engineers**
+- OWASP LLM compliance validation
+- AI security risk assessment
+- Automated vulnerability detection in AI workflows
+
+---
+
+## 📚 Documentation
+
+- **[Setup Guide](docs/setup.md)** - Detailed installation and configuration
+- **[Architecture Guide](docs/architecture.md)** - System design and component overview
+- **[API Reference](docs/api.md)** - Agent interfaces and extension points
+- **[Security Guide](docs/security.md)** - OWASP compliance and best practices
+- **[Monitoring Guide](docs/monitoring.md)** - Dashboard usage and alerting setup
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### **Development**
+- Report bugs via [GitHub Issues](https://github.com/siwenwang0803/secure-pr-guard/issues)
+- Submit feature requests with detailed use cases
+- Contribute code via Pull Requests with tests
+
+### **Community**
+- Join discussions in [GitHub Discussions](https://github.com/siwenwang0803/secure-pr-guard/discussions)
+- Share your use cases and feedback
+- Help improve documentation and examples
+
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**Built with:** Python 3.11+, OpenTelemetry, Docker, Grafana, Redis, LangGraph
