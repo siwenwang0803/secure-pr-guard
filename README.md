@@ -1,6 +1,6 @@
 # 🛡️ Secure PR Guard
 
-[![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#) [![GitHub Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-v1.0.2-blue)](https://github.com/marketplace/actions/secure-pr-guard)
+[![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#) [![GitHub Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-v1.0.3-blue)](https://github.com/marketplace/actions/secure-pr-guard)
 
 **🎬 [Demo Video](demo_materials/secure_pr_guard_demo_final.mp4) | ⭐ [Star this project](https://github.com/siwenwang0803/secure-pr-guard)**
 
@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Secure PR Guard Analysis
-        uses: siwenwang0803/secure-pr-guard@v1.0.2
+        uses: siwenwang0803/secure-pr-guard@v1.0.3
         with:
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           cost_limit: '1.00'
