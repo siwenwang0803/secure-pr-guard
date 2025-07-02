@@ -1,15 +1,13 @@
 name: Test Marketplace Action
 
 on:
-  workflow_dispatch:  # 手动触发，不干扰其他workflow
+  workflow_dispatch:
   push:
     branches: [ github-action-marketplace ]
 
 jobs:
   test-action:
     runs-on: ubuntu-latest
-    name: Test Secure PR Guard Action
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,13 +16,13 @@ jobs:
         uses: ./.github/actions/secure-pr-guard
         id: security-check
         with:
-          openai_api_key: "test-key-mock"
+          openai_api_key: "sk-test-mock-key-for-demo"
           cost_limit: "0.10"
           analysis_depth: "basic"
       
       - name: Display Results
         run: |
-          echo "Cost: ${{ steps.security-check.outputs.analysis_cost }}"
-          echo "Issues: ${{ steps.security-check.outputs.security_issues_found }}"
+          echo "Analysis Cost: ${{ steps.security-check.outputs.analysis_cost }}"
+          echo "Security Issues: ${{ steps.security-check.outputs.security_issues_found }}"
           echo "OWASP Score: ${{ steps.security-check.outputs.owasp_compliance_score }}"
           echo "Summary: ${{ steps.security-check.outputs.analysis_summary }}"
