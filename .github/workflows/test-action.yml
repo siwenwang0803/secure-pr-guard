@@ -11,8 +11,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Test Action
-        uses: ./
+      - name: Test Local Action
+        uses: ./.github/actions/secure-pr-guard
         with:
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           cost_limit: '0.10'
