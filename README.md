@@ -54,25 +54,6 @@ jobs:
 
 ---
 
-## 🚀 Quick Start (Self-Hosted)
-
-```bash
-# Clone and setup
-git clone https://github.com/siwenwang0803/secure-pr-guard.git
-cd secure-pr-guard && cp .env.example .env
-# Add your OPENAI_API_KEY to .env
-
-# One-command deployment
-docker-compose up -d
-
-# Analyze any GitHub PR
-python graph_review.py https://github.com/facebook/react/pull/27000
-```
-
-**Access monitoring dashboard:** `http://localhost:8081`
-
----
-
 ## 🚀 Quick Start
 
 ```bash
