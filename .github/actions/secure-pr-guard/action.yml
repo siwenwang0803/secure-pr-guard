@@ -1,11 +1,9 @@
 name: 'Secure PR Guard'
 description: 'AI-powered code review with OWASP LLM Top-10 compliance and real-time cost monitoring'
 author: 'Siwen Wang'
-
 branding:
   icon: 'shield'
   color: 'blue'
-
 inputs:
   openai_api_key:
     description: 'OpenAI API Key for AI analysis'
@@ -22,7 +20,6 @@ inputs:
     description: 'Analysis depth: basic, standard, comprehensive'
     required: false
     default: 'standard'
-
 outputs:
   analysis_cost:
     description: 'Total cost of analysis in USD'
@@ -32,7 +29,6 @@ outputs:
     description: 'OWASP LLM compliance score (0-100)'
   analysis_summary:
     description: 'Brief summary of analysis results'
-
 runs:
   using: 'docker'
   image: 'Dockerfile'
