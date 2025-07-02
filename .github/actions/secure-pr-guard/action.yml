@@ -14,33 +14,14 @@ inputs:
     description: 'GitHub token for API access'
     required: false
     default: ${{ github.token }}
-  pr_number:
-    description: 'Pull Request number to analyze'
-    required: false
-    default: ${{ github.event.number }}
   cost_limit:
     description: 'Maximum cost limit in USD for analysis'
     required: false
     default: '0.50'
-  enable_budget_guard:
-    description: 'Enable real-time budget monitoring'
-    required: false
-    default: 'true'
-  enable_owasp_scanning:
-    description: 'Enable OWASP LLM Top-10 security scanning'
-    required: false
-    default: 'true'
   analysis_depth:
     description: 'Analysis depth: basic, standard, comprehensive'
     required: false
     default: 'standard'
-  slack_webhook:
-    description: 'Slack webhook URL for budget alerts (optional)'
-    required: false
-  exclude_files:
-    description: 'File patterns to exclude from analysis (comma-separated)'
-    required: false
-    default: '*.md,*.txt,*.json,package-lock.json'
 
 outputs:
   analysis_cost:
@@ -51,21 +32,7 @@ outputs:
     description: 'OWASP LLM compliance score (0-100)'
   analysis_summary:
     description: 'Brief summary of analysis results'
-  report_url:
-    description: 'URL to detailed analysis report'
 
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  env:
-    OPENAI_API_KEY: ${{ inputs.openai_api_key }}
-    GITHUB_TOKEN: ${{ inputs.github_token }}
-    PR_NUMBER: ${{ inputs.pr_number }}
-    COST_LIMIT: ${{ inputs.cost_limit }}
-    ENABLE_BUDGET_GUARD: ${{ inputs.enable_budget_guard }}
-    ENABLE_OWASP_SCANNING: ${{ inputs.enable_owasp_scanning }}
-    ANALYSIS_DEPTH: ${{ inputs.analysis_depth }}
-    SLACK_WEBHOOK: ${{ inputs.slack_webhook }}
-    EXCLUDE_FILES: ${{ inputs.exclude_files }}
-    GITHUB_REPOSITORY: ${{ github.repository }}
-    GITHUB_WORKSPACE: ${{ github.workspace }}
