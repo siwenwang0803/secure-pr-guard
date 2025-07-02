@@ -1,33 +1,21 @@
 FROM python:3.11-slim
 
-# Set labels for GitHub Marketplace
+# 设置标签
 LABEL "com.github.actions.name"="Secure PR Guard"
-LABEL "com.github.actions.description"="AI code review with OWASP LLM compliance and cost monitoring"
-LABEL "com.github.actions.icon"="shield"
-LABEL "com.github.actions.color"="blue"
-LABEL "repository"="https://github.com/siwenwang0803/secure-pr-guard"
-LABEL "homepage"="https://github.com/siwenwang0803/secure-pr-guard"
-LABEL "maintainer"="Siwen Wang <your-email@example.com>"
+LABEL "com.github.actions.description"="AI code review with OWASP LLM compliance"
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 安装系统依赖
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 
-# Copy application code
-COPY . .
+# 安装Python依赖
+RUN pip install --no-cache-dir \
+    requests \
+    openai \
+    python-dotenv
 
-# Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Set the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
