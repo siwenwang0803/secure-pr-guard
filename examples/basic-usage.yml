@@ -1,0 +1,17 @@
+name: Secure Code Review
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AI Security Analysis
+        uses: siwenwang0803/secure-pr-guard@v1
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          cost_limit: '0.50'
+          analysis_depth: 'standard'
