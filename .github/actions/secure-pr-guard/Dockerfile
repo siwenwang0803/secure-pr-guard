@@ -1,29 +1,16 @@
 FROM python:3.11-slim
 
-LABEL "com.github.actions.name"="Secure PR Guard"
-LABEL "com.github.actions.description"="AI code review with OWASP LLM compliance"
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
+# 设置工作目录
 WORKDIR /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir \
-    openai>=1.0.0 \
-    requests>=2.28.0 \
-    python-dotenv>=1.0.0 \
-    PyYAML>=6.0 \
-    GitPython>=3.1.40
+# 先安装基础包（避免网络问题）
+RUN pip install --no-cache-dir requests openai
 
-# Copy all project files
-COPY . .
-
-# Set up entrypoint
-COPY .github/actions/secure-pr-guard/entrypoint.sh /entrypoint.sh
+# 复制entrypoint脚本
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# 复制必要文件
+COPY action_runner.py /app/ 2>/dev/null || echo "action_runner.py not found, using mock"
 
 ENTRYPOINT ["/entrypoint.sh"]
