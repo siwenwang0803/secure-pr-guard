@@ -1,0 +1,34 @@
+name: 'Secure PR Guard'
+description: 'AI-powered code review with OWASP LLM Top-10 compliance and real-time cost monitoring'
+author: 'siwenwang0803'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  openai_api_key:
+    description: 'OpenAI API key for AI analysis'
+    required: true
+  cost_limit:
+    description: 'Maximum cost limit in USD'
+    required: false
+    default: '0.50'
+  analysis_depth:
+    description: 'Analysis depth: basic, standard, comprehensive'
+    required: false
+    default: 'standard'
+
+outputs:
+  analysis_cost:
+    description: 'Total cost of analysis in USD'
+  security_issues_found:
+    description: 'Number of security issues detected'
+  owasp_compliance_score:
+    description: 'OWASP LLM compliance score (0-100)'
+  analysis_summary:
+    description: 'Brief summary of analysis results'
+
+runs:
+  using: 'docker'
+  image: '.github/actions/secure-pr-guard/Dockerfile'
