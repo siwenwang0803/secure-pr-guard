@@ -1,12 +1,75 @@
 # 🛡️ Secure PR Guard
 
-[![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#)
+[![CI Coverage](https://img.shields.io/badge/CI-passing-green)](#) [![OWASP LLM Top 10](https://img.shields.io/badge/OWASP-100%25-blue)](#) [![Python](https://img.shields.io/badge/python-3.11+-blue)](#) [![License](https://img.shields.io/badge/license-MIT-green)](#) [![GitHub Marketplace](https://img.shields.io/badge/GitHub%20Marketplace-v1.0.2-blue)](https://github.com/marketplace/actions/secure-pr-guard)
 
 **🎬 [Demo Video](demo_materials/secure_pr_guard_demo_final.mp4) | ⭐ [Star this project](https://github.com/siwenwang0803/secure-pr-guard)**
 
 > **Multi-Agent AI Code Review System with OWASP LLM Compliance and Cost Monitoring**
 > 
 > Automatically analyzes GitHub Pull Requests using GPT-4o with complete OWASP LLM Top-10 security scanning and real-time budget tracking via OpenTelemetry.
+
+---
+
+## 🚀 GitHub Action - One-Click Integration
+
+### Quick Setup for CI/CD
+Add this workflow to `.github/workflows/security-review.yml`:
+
+```yaml
+name: AI Security Review
+on: 
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secure PR Guard Analysis
+        uses: siwenwang0803/secure-pr-guard@v1.0.2
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          cost_limit: '1.00'
+          analysis_depth: 'standard'
+```
+
+### GitHub Action Inputs
+| Input | Description | Default | Required |
+|-------|-------------|---------|----------|
+| `openai_api_key` | OpenAI API key for AI analysis | - | ✅ |
+| `cost_limit` | Maximum cost limit in USD | `0.50` | ❌ |
+| `analysis_depth` | Analysis depth: `basic`, `standard`, `comprehensive` | `standard` | ❌ |
+
+### GitHub Action Outputs
+- `analysis_cost` - Total analysis cost in USD
+- `security_issues_found` - Number of security issues detected
+- `owasp_compliance_score` - OWASP LLM compliance score (0-100)
+- `analysis_summary` - Human-readable analysis summary
+
+### Pricing
+- **Basic Analysis**: ~$0.015 per PR
+- **Standard Analysis**: ~$0.025 per PR  
+- **Comprehensive Analysis**: ~$0.045 per PR
+
+---
+
+## 🚀 Quick Start (Self-Hosted)
+
+```bash
+# Clone and setup
+git clone https://github.com/siwenwang0803/secure-pr-guard.git
+cd secure-pr-guard && cp .env.example .env
+# Add your OPENAI_API_KEY to .env
+
+# One-command deployment
+docker-compose up -d
+
+# Analyze any GitHub PR
+python graph_review.py https://github.com/facebook/react/pull/27000
+```
+
+**Access monitoring dashboard:** `http://localhost:8081`
 
 ---
 
