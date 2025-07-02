@@ -1,32 +1,27 @@
 #!/bin/bash
 set -e
 
-echo "🛡️ Secure PR Guard - GitHub Action"
+echo "🛡️ Secure PR Guard - Enterprise AI Code Review"
 echo "Repository: $GITHUB_REPOSITORY"
-echo "PR Number: ${INPUT_PR_NUMBER:-unknown}"
 echo "Cost Limit: ${INPUT_COST_LIMIT:-0.50}"
+echo "Analysis Depth: ${INPUT_ANALYSIS_DEPTH:-standard}"
 
-# 验证必需的输入
+# Validate required inputs
 if [ -z "${INPUT_OPENAI_API_KEY}" ]; then
     echo "❌ Error: openai_api_key is required"
     exit 1
 fi
 
-echo "🤖 Running AI analysis..."
-sleep 3
+# Set up environment for analysis
+export OPENAI_API_KEY="${INPUT_OPENAI_API_KEY}"
+export GITHUB_TOKEN="${INPUT_GITHUB_TOKEN}"
 
-# 模拟分析过程
-echo "📊 Processing code diff..."
-echo "🛡️ Running OWASP LLM security scan..."
-echo "💰 Monitoring costs..."
+# Run the real analysis
+echo "🤖 Starting AI-powered security analysis..."
+python3 /app/action_runner.py \
+    --cost-limit "${INPUT_COST_LIMIT:-0.50}" \
+    --analysis-depth "${INPUT_ANALYSIS_DEPTH:-standard}" \
+    --output-file "/tmp/results.json"
 
-# 设置GitHub Actions输出
-echo "analysis_cost=0.025" >> "${GITHUB_OUTPUT}"
-echo "security_issues_found=1" >> "${GITHUB_OUTPUT}"
-echo "owasp_compliance_score=90" >> "${GITHUB_OUTPUT}"
-echo "analysis_summary=✅ Mock analysis completed. Found 1 potential security issue." >> "${GITHUB_OUTPUT}"
-
-echo "✅ Analysis completed successfully!"
-echo "💰 Total cost: \$0.025"
-echo "🛡️ Security issues found: 1"
-echo "📋 OWASP compliance score: 90%"
+echo "📊 Analysis results have been set in GitHub Actions outputs"
+echo "🎉 Secure PR Guard completed successfully!"
